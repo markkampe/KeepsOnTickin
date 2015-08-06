@@ -6,15 +6,8 @@ from RelyFuncts import SECOND, MINUTE, HOUR, DAY, YEAR, FitRate, allFail
 from sizes import MiB, GiB, PiB
 
 
-class Results:
-    """ The results of a simulation """
-
-
 class Model:
-    """
-        1. a collection of simulation parameters
-        2. methods to compute the results of the simulation
-    """
+    """ a collection of simulation parameters """
 
     def __init__(self):
         """ initialize default simulation parameters """
@@ -59,64 +52,66 @@ class Model:
         self.sw_hard = 0.01     # fraction of panics that don't reboot
         self.dram_2bit = 0.02    # fraction of multi-bit errors
 
-    def calculate_size(self, capacity):
-        """ compute number of primary and secodary nodes
-                capacity -- total (byte) capacity of the system
 
-            Some important parameters are best computed as functions
-            of other parameters.  These computations are in a separate
-            method to improve readability.
+class Sizes:
+    """ The key capacities that drive the result """
+    def __init__(self, model, capacity=1 * PiB):
+        """ compute the sizes of the cache and number of nodes
+            model -- the base simulation parameters
+            capacity -- capacity of the backing store
         """
+
+        # note the total system capacity
+        self.total = capacity
 
         # figure out how much data we are keeping in cache
-        used = capacity * self.cap_used
-        active = used * self.luns_active
-        cached = active * self.luns_cached
+        used = capacity * model.cap_used
+        active = used * model.luns_active
+        cached = active * model.luns_cached
         GiB_1 = cached / GiB
-        GiB_2 = cached * self.copies / GiB
+        GiB_2 = cached * model.copies / GiB
 
-        # figure out how many primary/secondary nodes that implies
-        if self.n_nvram_1 == 0:
-            n_1 = GiB_1 / (self.n_dram_1 * self.sz_dram)
+        # figure out how much cache we can store on a primary
+        if model.n_nvram_1 == 0:
+            self.primary = model.n_dram_1 * model.sz_dram
         else:
-            n_1 = GiB_1 / (self.n_nvram_1 * self.sz_nvram)
-        if self.n_nvram_2 == 0:
-            n_2 = GiB_2 / (self.n_dram_2 * self.sz_dram)
+            self.primary = model.n_nvram_1 * model.sz_nvram
+
+        # figure out how much cache we can store on a secondary
+        if model.n_nvram_2 == 0:
+            self.secondary = model.n_dram_2 * model.sz_dram
         else:
-            n_2 = GiB_2 / (self.n_nvram_2 * self.sz_nvram)
+            self.secondary = model.n_nvram_2 * model.sz_nvram
 
-        return (n_1, n_2)
+        # figure out how many primaries and secondaries we need
+        self.n_primary = GiB_1 / self.primary
+        self.n_secondary = GiB_2 / self.secondary
 
-    def calculate_rates(self, repair):
-        """ compute the bottom-up FIT rates
-                repair -- repair time (hours) for failed components
 
-            Some FIT rates must be computed as functions of other
-            failure, performance, and architectural parameters.
-            These computations are in a separate method to
-            improve readability.
+class Rates:
+    """ The key rates that drive the result """
+    def __init__(self, m, repair=24 * HOUR):
+        """ compute the sizes of the cache and number of nodes
+            model -- the base simulation parameters
+            repair -- time (HOURS) to replace a failed component
         """
 
-        # attempt a bottom-up node FITs computation
-        power_fits = allFail(self.f_power, self.n_power, self.m_power, repair)
-        fan_fits = allFail(self.f_fan, self.n_fan, self.m_fan, repair)
-        nic_fits = allFail(self.f_nic, self.n_nic, self.m_nic, repair)
+        # attempt a bottom-up h/w node FITs computation
+        power_fits = allFail(m.f_power, m.n_power, m.m_power, repair)
+        fan_fits = allFail(m.f_fan, m.n_fan, m.m_fan, repair)
+        nic_fits = allFail(m.f_nic, m.n_nic, m.m_nic, repair)
+        self.fits_primary_hw = m.f_ctlr + power_fits + fan_fits + nic_fits
+        self.fits_secondary_hw = m.f_ctlr + power_fits + fan_fits + nic_fits
 
         # estimate hard s/w failures as a fraction of all s/w failures
-        hard_sw_fits = self.f_sw * self.sw_hard
-
-        # assume primary and secondary nodes are the same
-        self.fits_1 = self.f_ctlr + power_fits + fan_fits + nic_fits + \
-            hard_sw_fits
-        self.fits_2 = self.f_ctlr + power_fits + fan_fits + nic_fits + \
-            hard_sw_fits
+        self.fits_primary_sw = m.f_sw * m.sw_hard
+        self.fits_secondary_sw = m.f_sw * m.sw_hard
 
         # estimate hard DRAM failures as a fraction of soft ones
-        self.f_dram_hard = self.f_dram * self.dram_2bit
+        self.f_dram_hard = m.f_dram * m.dram_2bit
 
         # FIX calc memory failures resulting in resets of non-persistent copies
         # FIX calc memory failures resulting in loss of persistent copies
-        # FIX calc recovery time
 
         # DRAM trivia
         #   (a) 1 DRAM fault every 6-7 hours
@@ -134,34 +129,49 @@ class Model:
         #f_hw_soft = 1     # FIX ... use UBER
         #f_hw_hard += f_hw_soft * self.nvm_hard
 
-    def calculate_durability(self, primaries, secondaries, period=1 * YEAR):
+
+class Results:
+    """ The results of a simulation """
+    def __init__(self, model, sizes, rates, period=1*YEAR):
         """ compute the probability of data loss
-                primaries -- number of primary nodes
-                secondaries -- number of secondary nodes
+                model -- base simulation parameters
+                sizes -- key capacities and counts
+                rates -- key fit rates
                 period -- period (hours) to be analyzed
         """
-        # compute Ploss_1(T)
-        # compute Ploss_1(Tr)
-        # compute Ploss_2(T)
-        # compute Ploss_2(Tr)
 
-        results = Results()
+        # initial primary failures
+        #   1-P(n=0) p primaries, period
+        #   x, for each remaining copy
+        #       1-P(n=0) surviving copies, Tr
+
+        # initial seconary failures
+        #   1-P(n=0) s secondaries, period
+        #   x 1-P(n=0) 1 primary, Tr
+        #   x, for each remaining copy
+        #       1-P(n=0) surviving copies, Tr
+
+        # initial secondary failures
         # P(primary failures(T)) ... in entire system
         #   for each additional copy
         #       times P subsequent secondary failure(Tr) ... in mirror group
-        results.p_loss_node = .0001
+        self.p_loss_node = .0001
 
         # P(secondary failures(T)) ... in entire system
         #   times P(primary faiures(Tr)) ... of a particular primary
         #   for each additional copy
         #       times P subsequent secondary failure(Tr) ... in mirror group
-        results.p_loss_node += .0001
+        self.p_loss_node += .0001
+        self.exp_loss_node = 100
 
         # P(lose all copies)
-        results.p_loss_copy = .0002
+        self.p_loss_copy = .0002
+        self.exp_loss_copy = 4096
 
-        # compute expected data loss
-        results.exp_loss_node = 100
-        results.exp_loss_copy = 4096
+        # compute the overall probability of data loss
+        self.p_loss_all = self.p_loss_node + self.p_loss_copy
+        self.exp_loss_all = self.p_loss_node * self.exp_loss_node +\
+            self.p_loss_copy * self.exp_loss_copy
 
-        return results
+        self.durability = 1 - self.p_loss_all
+        self.nines = 0

@@ -3,7 +3,7 @@
 from sizes import PiB
 from RelyFuncts import YEAR, HOUR
 
-from Model import Model
+from Model import Model, Sizes, Rates, Results
 
 
 def run(model, capacity=1*PiB, period=1*YEAR, repair=24*HOUR):
@@ -15,16 +15,22 @@ def run(model, capacity=1*PiB, period=1*YEAR, repair=24*HOUR):
 
     # FIX   ... figure out what I want to output
     #       ... and then get the pretty print stuff working again
-    (primaries, secondaries) = model.calculate_size(capacity)
-    print("primaries = %d" % primaries)
-    print("secondaries = %d" % secondaries)
+    sizes = Sizes(model, capacity)
+    print("primaries = %d" % sizes.n_primary)
+    print("secondaries = %d" % sizes.n_secondary)
 
-    model.calculate_rates(repair)
-    print("primary FITs = %d" % model.fits_1)
-    print("secondary FITs = %d" % model.fits_2)
+    rates = Rates(model, repair)
+    print("primary HW FITs = %d" % rates.fits_primary_hw)
+    print("primary SW FITs = %d" % rates.fits_primary_sw)
+    print("secondary HW FITs = %d" % rates.fits_secondary_hw)
+    print("secondary SW FITs = %d" % rates.fits_secondary_sw)
 
-    results = model.calculate_durability(primaries, secondaries, period)
+    results = Results(model, sizes, rates, period)
     print("Ploss(node) = %e, exp = %d" %
           (results.p_loss_node, results.exp_loss_node))
     print("Ploss(copy) = %e, exp = %d" %
           (results.p_loss_copy, results.exp_loss_copy))
+    print("Ploss(total) = %e, exp = %d" %
+          (results.p_loss_all, results.exp_loss_all))
+    print("durability = %e, nines = %d" %
+          (results.durability, results.nines))

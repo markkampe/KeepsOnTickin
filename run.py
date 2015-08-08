@@ -17,8 +17,8 @@ def run(models, capacity=1*PiB, period=1*YEAR, repair=24*HOUR,
         verbosity -- what kind of output we want
     """
 
-    # set up the column headings and descriptions
-    heads = ("configuration", "durability", "PL(copies)", "PL(NRE)",
+    # define the column headings
+    heads = ("configuration", "durability", "PL(node)", "PL(NRE)",
              "loss/PiB")
     legends = [
         "configuration being modeled",
@@ -27,7 +27,15 @@ def run(models, capacity=1*PiB, period=1*YEAR, repair=24*HOUR,
         "probability of loss due to NREs during recovery",
         "expected data loss per Petabyte"
     ]
-    format = ColumnPrint(heads)
+
+    # figure out the longest description
+    maxlen = len(heads[0])
+    for m in models:
+        l = len(m.descr)
+        if l > maxlen:
+            maxlen = l
+
+    format = ColumnPrint(heads, maxdesc=maxlen)
 
     # figure out what output he wants
     headings = True
@@ -64,20 +72,14 @@ def run(models, capacity=1*PiB, period=1*YEAR, repair=24*HOUR,
 
     for m in models:
 
-        sizes = Sizes(m, capacity)
-        if debug:
-            print("primaries = %d" % sizes.n_primary)
-            print("secondaries = %d" % sizes.n_secondary)
-
-        rates = Rates(m, repair)
-        if debug:
-            print("primary HW FITs = %d" % rates.fits_primary_hw)
-            print("primary SW FITs = %d" % rates.fits_primary_sw)
-            print("secondary HW FITs = %d" % rates.fits_secondary_hw)
-            print("secondary SW FITs = %d" % rates.fits_secondary_sw)
-
         # run the model
+        sizes = Sizes(m, capacity)
+        rates = Rates(m, repair)
         results = Results(m, sizes, rates, period)
+
+        # print out the model parameters
+        if parms:
+            print "TBD"
 
         # print out the report results
         s = list()

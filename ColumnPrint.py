@@ -18,11 +18,11 @@ from RelyFuncts import YEAR, DAY, HOUR, MINUTE, SECOND
 class ColumnPrint:
     """ a class to produce attractive columnar output """
 
-    def __init__(self, headings):
+    def __init__(self, headings, maxdesc=20):
         """ derive the format string """
         self.headings = headings
         Indent = 4
-        DescWid = 20
+        DescWid = maxdesc
         ColWid = 12
 
         # figure out how wide our columns have to be

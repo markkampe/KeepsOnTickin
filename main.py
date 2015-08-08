@@ -11,19 +11,64 @@ from run import run
 
 
 def defaultTests():
+        """ create and run a set of standard test scenarios """
         # create a list of tests to be run
         mlist = list()
-        model = Model("Default")
-        mlist.append(model)
+
+        m = Model("primary: v,  no copies")
+        m.copies = 0         # secondary copies
+        m.n_dram_1 = 16      # DRAM DIMMs / primary node
+        m.n_nvram_1 = 0      # NVRAM DIMMs / primary node
+        m.n_dram_2 = 0       # DRAM DIMMs / secondary node
+        m.n_nvram_2 = 0      # NVRAM DIMMs / secondary node
+        mlist.append(m)
+
+        m = Model("primary: nv, no copies")
+        m.copies = 0         # secondary copies
+        m.n_dram_1 = 0       # DRAM DIMMs / primary node
+        m.n_nvram_1 = 16     # NVRAM DIMMs / primary node
+        m.n_dram_2 = 0       # DRAM DIMMs / secondary node
+        m.n_nvram_2 = 0      # NVRAM DIMMs / secondary node
+        mlist.append(m)
+
+        m = Model("primary: v,  1 nv copy")
+        m.copies = 1         # secondary copies
+        m.n_dram_1 = 16      # DRAM DIMMs / primary node
+        m.n_nvram_1 = 0      # NVRAM DIMMs / primary node
+        m.n_dram_2 = 0       # DRAM DIMMs / secondary node
+        m.n_nvram_2 = 16     # NVRAM DIMMs / secondary node
+        mlist.append(m)
+
+        m = Model("primary: nv, 1 nv copy")
+        m.copies = 1         # secondary copies
+        m.n_dram_1 = 0       # DRAM DIMMs / primary node
+        m.n_nvram_1 = 16     # NVRAM DIMMs / primary node
+        m.n_dram_2 = 0       # DRAM DIMMs / secondary node
+        m.n_nvram_2 = 16     # NVRAM DIMMs / secondary node
+        mlist.append(m)
+
+        m = Model("primary: v,  2 nv copy")
+        m.copies = 2         # secondary copies
+        m.n_dram_1 = 16      # DRAM DIMMs / primary node
+        m.n_nvram_1 = 0      # NVRAM DIMMs / primary node
+        m.n_dram_2 = 0       # DRAM DIMMs / secondary node
+        m.n_nvram_2 = 16     # NVRAM DIMMs / secondary node
+        mlist.append(m)
+
+        m = Model("primary: nv, 2 nv copy")
+        m.copies = 2         # secondary copies
+        m.n_dram_1 = 0       # DRAM DIMMs / primary node
+        m.n_nvram_1 = 16     # NVRAM DIMMs / primary node
+        m.n_dram_2 = 0       # DRAM DIMMs / secondary node
+        m.n_nvram_2 = 16     # NVRAM DIMMs / secondary node
+        mlist.append(m)
 
         # run all the specified models
-        run(mlist, verbosity="all")
+        run(mlist, verbosity="headings")
 
 
 def main():
-    """ CLI entry-point:
-        process command line arguments, run gui or a standard set of tests
-    """
+    """ process command line arguments, run specified tests """
 
     # process the command line arguments arguments
     from optparse import OptionParser

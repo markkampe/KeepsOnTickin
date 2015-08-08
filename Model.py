@@ -88,7 +88,7 @@ class Sizes:
 
         # figure out how many primaries and secondaries we need
         self.n_primary = GiB_1 / self.primary
-        self.n_secondary = GiB_2 / self.secondary
+        self.n_secondary = GiB_2 / self.secondary if model.copies > 0 else 0
 
 
 class Rates:

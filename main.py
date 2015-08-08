@@ -11,9 +11,13 @@ from run import run
 
 
 def defaultTests():
-        # FIX: figure out what I want to do here
-        model = Model()
-        run(model)
+        # create a list of tests to be run
+        mlist = list()
+        model = Model("Default")
+        mlist.append(model)
+
+        # run all the specified models
+        run(mlist, verbosity="all")
 
 
 def main():

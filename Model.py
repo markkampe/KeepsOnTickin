@@ -9,8 +9,11 @@ from sizes import MiB, GiB, PiB
 class Model:
     """ a collection of simulation parameters """
 
-    def __init__(self):
+    def __init__(self, description):
         """ initialize default simulation parameters """
+
+        # name of modeled configuration
+        self.descr = description
 
         # hardware configuration parameters
         self.n_dram_1 = 16      # DRAM DIMMs / primary node
@@ -173,5 +176,11 @@ class Results:
         self.exp_loss_all = self.p_loss_node * self.exp_loss_node +\
             self.p_loss_copy * self.exp_loss_copy
 
-        self.durability = 1 - self.p_loss_all
+        # compute the durability
+        d = 1 - self.p_loss_all
+        self.durability = d
         self.nines = 0
+        while d > .9:
+            self.nines += 1
+            d -= .9
+            d *= 10

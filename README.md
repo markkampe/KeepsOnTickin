@@ -29,11 +29,18 @@ Caveats:
 Overview of Modules:
 	Model.py ... modelling parameters and computations
 
-	RelyGUI.py ... tkinter GUI for setting parameters and running tests
+	# RelyGUI.py ... tkinter GUI for setting parameters and running tests
 	main.py ... CLI command to instantiate and run models
-	uun.py ... run and report the results of a particular model
+	run.py ... run and report the results of a particular model
 	
-
 	RelyFuncts.py ... Poisson probability functions and time constants
 	sizes.py ... useful capacity/speed constants
 
+Running the model
+	python main.py -v <verbosity>
+		data		data only
+		headings	data and column headings legend
+		parameters	dump out all the primary parameters
+		debug		a lot of intermediate computation information
+
+	By default it runs the set of tests that are defined in main.py:defaultTests

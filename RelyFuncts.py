@@ -73,7 +73,7 @@ def Pn(expected=1, n=0):
     return p
 
 
-def allFail(fitRate, total, required, repair, oneRepair=True):
+def multiFit(fitRate, total, required, repair, oneRepair=True):
     """ effective FIT rate required/total redundant components
             fitRate -- FIT rate of a single component
             total -- number of redundant components in system

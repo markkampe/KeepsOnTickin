@@ -1,7 +1,7 @@
 """
 Input values to the simulation, and output values from the simulation
 """
-from RelyFuncts import SECOND, MINUTE, HOUR, DAY, YEAR, FitRate, Pfail, allFail
+from RelyFuncts import SECOND, MINUTE, HOUR, DAY, YEAR, FitRate, Pfail, multiFit
 
 from sizes import MiB, GiB, PiB, GB
 
@@ -117,9 +117,9 @@ class Rates:
         """
 
         # attempt a bottom-up h/w node FITs computation
-        power_fits = allFail(m.f_power, m.n_power, m.m_power, repair)
-        fan_fits = allFail(m.f_fan, m.n_fan, m.m_fan, repair)
-        nic_fits = allFail(m.f_nic, m.n_nic, m.m_nic, repair)
+        power_fits = multiFit(m.f_power, m.n_power, m.m_power, repair)
+        fan_fits = multiFit(m.f_fan, m.n_fan, m.m_fan, repair)
+        nic_fits = multiFit(m.f_nic, m.n_nic, m.m_nic, repair)
         self.fits_1_loss = m.f_ctlr + power_fits + fan_fits + nic_fits
         self.fits_2_loss = m.f_ctlr + power_fits + fan_fits + nic_fits
 

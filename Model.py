@@ -1,9 +1,9 @@
 """
 Input values to the simulation, and output values from the simulation
 """
-from RelyFuncts import SECOND, MINUTE, HOUR, DAY, YEAR, FitRate, Pfail, multiFit
-
-from sizes import MiB, GiB, PiB, GB
+from RelyFuncts import FitRate, Pfail, multiFit
+from RelyFuncts import SECOND, MINUTE, HOUR, DAY, YEAR
+from sizes import MiB, GiB, PiB, MB, GB
 
 #
 # TODO
@@ -25,43 +25,45 @@ class Model:
         self.descr = description
 
         # hardware configuration parameters
-        self.n_dram_1 = 16      # DRAM DIMMs / primary node
-        self.n_dram_2 = 0       # DRAM DIMMs / secondary node
-        self.n_nvram_1 = 0      # NVRAM DIMMs / primary node
-        self.n_nvram_2 = 16     # NVRAM DIMMs / secondary node
+        self.cache_1 = 1 * GB   # cache per primary node
+        self.cache_2 = 40 * GB  # cache per secondary node
+        self.nv_1 = False       # non-volatile primary
+        self.nv_2 = True        # non-volatile secondary
         self.n_power = 1        # total power supplies/node
         self.m_power = 1        # minimum power supplies/node
         self.n_fan = 2          # total fans/node
         self.m_fan = 1          # minimum fans/node
         self.n_nic = 2          # total NICs/node
         self.m_nic = 1          # minimum NICs/node
-        self.sz_nvram = 40      # GB / NVRAM DIMM
-        self.sz_dram = 2        # GB / DRAM DIMM
 
         # architectural parameters
-        self.rate_flush = 50 * MiB      # flush to backing store
+        self.rate_flush = 50 * MiB  # flush to backing store
         self.time_detect = 30   # detect failure/initiate recovery
         self.fan_out = 4        # secondary/primary
         self.fan_in = 4         # primary/secondary
         self.copies = 2         # secondary copies
+        self.max_dirty = 250 * MB   # max dirty data in primary
 
         # utilization parameters
         self.cap_used = 0.75    # how full is the backing store
+        self.dedup = 3          # overall dedup savings
         self.lun_active = 0.05  # fraction of LUNs in use
-        self.lun_cached = 0.25  # fraction of active LUN in cache
-        self.lun_dirty = 0.10   # dirty fraction of cached blocks
+        self.lun_size = 50 * GB     # average LUN size
 
         # load parameters
         self.bsize = 4096       # expected block size
-        self.write_iops = 500   # avg writes per second per primary
-        self.write_reduce = 9   # savings from aggregation/deduplication
+        self.prim_vms = 12      # average number of VMs per primary
+        self.lun_per_vm = 1.5   # average number of LUNs per VM
+        self.iops = 500         # avg IOPS per VM
+        self.write_fract = 0.5  # fraction of write operations
+        self.write_aggr = 4     # savings from write aggregation
 
         # failure rates for which there is real data
         self.f_ctlr = 4000      # per board
         self.f_power = 1642     # per power supply
         self.f_fan = 518        # per fan
         self.f_nic = 200        # per NIC
-        self.f_dram = 10000     # per GB
+        self.f_dram = 10        # per MB
         self.uer_nvm = 1.0E-17  # typical number for MLC nand
         self.f_sw = FitRate(4, YEAR)    # node panics
 
@@ -79,32 +81,17 @@ class Sizes:
             debug -- enable diagnostic output
         """
 
-        # note the total system capacity
+        # figure out how many LUNs and VMs we can support
         self.total = capacity
+        used = capacity * model.cap_used * model.dedup
+        luns = used / model.lun_size
+        active = luns * model.lun_active
+        vms = active / model.lun_per_vm
 
-        # figure out total amount of data to be cached
-        used = capacity * model.cap_used
-        active = used * model.lun_active
-        cached = active * model.lun_cached
-
-        # figure out how much cache we can store on a primary
-        if model.n_nvram_1 != 0:
-            self.primary = model.n_nvram_1 * model.sz_nvram * GB
-        else:
-            self.primary = model.n_dram_1 * model.sz_dram * GB
-
-        # figure out how much cache we can store on a secondary
-        if model.n_nvram_2 != 0:
-            self.secondary = model.n_nvram_2 * model.sz_nvram * GB
-        else:
-            self.secondary = model.n_dram_2 * model.sz_dram * GB
-
-        # figure out how many primary/secondary nodes we need
-        self.n_primary = cached / self.primary
-        if self.secondary > 0:
-            self.n_secondary = cached * model.copies / self.secondary
-        else:
-            self.n_secondary = 0
+        # figure out how many primaries and secondaries that means
+        self.n_primary = vms / model.prim_vms
+        cached = self.n_primary * model.cache_1
+        self.n_secondary = cached * model.copies / model.cache_2
 
 
 class Rates:
@@ -134,13 +121,23 @@ class Rates:
         #   rate.  Because I have NVRAM reliability characterized as a
         #   UBER, its contribution is computed separately.
         #
-        self.n_dram_1 = 16      # DRAM DIMMs / primary node
-        if m.n_dram_1 != 0:
+        if not m.nv_1:
             self.fits_1_loss += m.f_sw
-            self.fits_1_loss += m.n_dram_1 * m.sz_dram * m.f_dram
-        if m.n_dram_2 != 0:
+            self.fits_1_loss += m.cache_1 * m.f_dram * m.dram_2bit / MB
+        if not m.nv_2:
             self.fits_2_loss += m.f_sw
-            self.fits_1_loss += m.n_dram_2 * m.sz_dram * m.f_dram
+            self.fits_2_loss += m.cache_2 * m.f_dram * m.dram_2bit / MB
+
+        # compute a few other interesting cache rate/use parameters
+        #   Note: we have modeled write-aggregation as a constant,
+        #         but in actuality it is probably a function of the
+        #         the interval between flushes
+        self.time_flush = float(m.max_dirty) / m.rate_flush
+        self.fract_dirty = float(m.max_dirty) / m.cache_1
+        self.writes_in = m.bsize * m.iops * m.write_fract
+        self.new_writes_in = self.writes_in / m.write_aggr
+        self.interval_flush = float(m.max_dirty) / self.new_writes_in
+        self.cache_life = float(m.cache_1) / self.new_writes_in
 
 
 class Results:
@@ -169,8 +166,9 @@ class Results:
         n2 = sizes.n_secondary      # number of secondaries in system
         l1 = rates.fits_1_loss      # primary loss FIT rate
         l2 = rates.fits_2_loss      # secondary loss FIT rate
-        sz = sizes.primary          # cached data on primary
+        dirty = model.max_dirty     # maximum dirty data / primary
         cp = model.copies           # number of secondary copies
+        Tr = rates.time_flush       # time to flush dirty data
 
         # accumulated results (segregated by case)
         #   compounded errors make it impossible to completely
@@ -181,14 +179,11 @@ class Results:
         P2 = 0          # data error, starting with primary
         P3 = 0          # node failure, starting with secondary
         P4 = 0          # data loss, after secondary node failure
-        L = sz / fo     # expected loss if things go bad
+        L = dirty / fo  # expected loss if things go bad
 
         # compute the total recovery (detect+flush) times
         tr_d = model.time_detect
-        tr_r = (sz / (fo * model.rate_flush))
-        self.Tr = (tr_d + tr_r) * SECOND
-        if debug:
-            print("Tr = %e, det=%ds, recov=%ds" % (self.Tr, tr_d, tr_r))
+        tr_r = rates.time_flush
 
         # Scenario 1a: primary fails during modeled period
         P1 = 1 - Pfail(l1 * n1, period, 0)
@@ -196,8 +191,8 @@ class Results:
             print("P1first(%d, T=%e)=%e -> P1=%e" % (n1, period, P1, P1))
 
         # Scenario 2a: primary suffers an NRE during modeled period
-        if model.n_nvram_1 > 0:
-            bits = 8 * model.bsize * model.write_iops / model.write_reduce
+        if model.nv_1:
+            bits = 8 * rates.writes_in
             bits *= period / SECOND
             errs = bits * model.uer_nvm
         else:
@@ -212,10 +207,10 @@ class Results:
         surv = n2
         while i > 0:
             # at most fan_out secondaries participate in recovery
-            Pnext = 1 - Pfail(l2 * min(fo, surv), self.Tr, 0)
-            if model.n_nvram_2 > 0:
-                # all of the secondaries combined read sz bytes
-                bits = 8 * sz
+            Pnext = 1 - Pfail(l2 * min(fo, surv), Tr, 0)
+            if model.nv_2:
+                # all of the secondaries combined read dirty bytes
+                bits = 8 * dirty
                 errs = bits * model.uer_nvm
             else:
                 errs = 0
@@ -227,9 +222,9 @@ class Results:
                 P2 *= (Pnext + errs)
             if debug:
                 print("P2next(%d, Tr=%e) = %e, errs=%e -> P1=%e" %
-                     (i, self.Tr, Pnext, errs, P1))
+                     (i, Tr, Pnext, errs, P1))
                 print("P2next(%d, Tr=%e) = %e, errs=%e -> P2=%e" %
-                     (i, self.Tr, Pnext, errs, P1))
+                     (i, Tr, Pnext, errs, P1))
             i -= 1
             surv -= 1
 
@@ -239,10 +234,10 @@ class Results:
             print("P2first(%d, T=%e) -> P3=%e" % (n2, period, P3))
 
         # Scenario 3b: primary fails during flush
-        Pnext = 1 - Pfail(l1 * fi, self.Tr, 0)
-        if model.n_nvram_1 > 0:
-            # each affected primary will read sz/fo bytes
-            bits = 8 * fi * sz / fo
+        Pnext = 1 - Pfail(l1 * fi, Tr, 0)
+        if model.nv_1:
+            # each affected primary will read dirty/fo bytes
+            bits = 8 * fi * dirty / fo
             errs = bits * model.uer_nvm
         else:
             errs = 0
@@ -250,7 +245,7 @@ class Results:
         P3 *= Pnext
         if debug:
             print("P1next(%d, Tr=%e) = %e, errs=%e -> P3=%e" %
-                 (fi, self.Tr, Pnext, errs, P3))
+                 (fi, Tr, Pnext, errs, P3))
 
         # Scenario 3c: all copies fail during recovery
         i = cp - 1
@@ -258,10 +253,10 @@ class Results:
         while i > 0:
             # at most fan_out secondaries participate in recovery
             # PROBABLY WRONG ... BUT LOW IMPACT
-            Pnext = 1 - Pfail(l2 * min(fo, surv), self.Tr, 0)
-            if model.n_nvram_2 > 0:
+            Pnext = 1 - Pfail(l2 * min(fo, surv), Tr, 0)
+            if model.nv_2:
                 # all of the secondaries combined read sz bytes
-                bits = 8 * sz / model.fan_out   # FIX
+                bits = 8 * dirty / fo       # FIX
                 errs = bits * model.uer_nvm
             else:
                 errs = 0
@@ -269,7 +264,7 @@ class Results:
             P4 *= (Pnext + errs)
             if debug:
                 print("P2next(%d, Tr=%e) = %e, errs=%e -> P3=%e" %
-                     (i, self.Tr, Pnext, errs, P3))
+                     (i, Tr, Pnext, errs, P3))
             i -= 1
             surv -= 1
 

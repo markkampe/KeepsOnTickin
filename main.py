@@ -16,63 +16,46 @@ def defaultTests(verbosity="default"):
         mlist = list()
 
         m = Model("prim: v,  no copies, 30s, 50MB/s")
-        m.copies = 0         # secondary copies
-        m.time_detect = 30   # 30s detect fail/start recovery
-        m.rate_flush = 50000000     # data flush rate
-        m.n_dram_1 = 16      # DRAM DIMMs / primary node
-        m.n_nvram_1 = 0      # NVRAM DIMMs / primary node
-        m.n_dram_2 = 0       # DRAM DIMMs / secondary node
-        m.n_nvram_2 = 0      # NVRAM DIMMs / secondary node
+        m.nv_1 = False
+        m.copies = 0
+        m.time_detect = 30
+        m.rate_flush = 50000000
         mlist.append(m)
 
         m = Model("prim: nv, no copies, 30s, 50MB/s")
-        m.copies = 0         # secondary copies
-        m.time_detect = 30   # 30s detect fail/start recovery
-        m.rate_flush = 50000000     # data flush rate
-        m.n_dram_1 = 0       # DRAM DIMMs / primary node
-        m.n_nvram_1 = 1      # NVRAM DIMMs / primary node
-        m.n_dram_2 = 0       # DRAM DIMMs / secondary node
-        m.n_nvram_2 = 0      # NVRAM DIMMs / secondary node
+        m.nv_1 = True
+        m.copies = 0
+        m.time_detect = 30
+        m.rate_flush = 50000000
         mlist.append(m)
 
         m = Model("prim: v,  1 nv copy, 30s, 50MB/s")
-        m.copies = 1         # secondary copies
-        m.time_detect = 30   # 30s detect fail/start recovery
-        m.rate_flush = 50000000     # data flush rate
-        m.n_nvram_1 = 0      # NVRAM DIMMs / primary node
-        m.n_dram_1 = 16      # DRAM DIMMs / primary node
-        m.n_dram_2 = 0       # DRAM DIMMs / secondary node
-        m.n_nvram_2 = 16     # NVRAM DIMMs / secondary node
+        m.nv_1 = False
+        m.nv_2 = True
+        m.copies = 1
+        m.time_detect = 30
+        m.rate_flush = 50000000
         mlist.append(m)
 
         m = Model("prim: nv, 1 nv copy, 30s, 50MB/s")
-        m.copies = 1         # secondary copies
-        m.time_detect = 30   # 30s detect fail/start recovery
-        m.rate_flush = 50000000     # data flush rate
-        m.n_dram_1 = 0       # DRAM DIMMs / primary node
-        m.n_nvram_1 = 1      # NVRAM DIMMs / primary node
-        m.n_dram_2 = 0       # DRAM DIMMs / secondary node
-        m.n_nvram_2 = 16     # NVRAM DIMMs / secondary node
+        m.copies = 1
+        m.nv_1 = True
+        m.nv_2 = True
+        m.rate_flush = 50000000
         mlist.append(m)
 
         m = Model("prim: v,  2 nv copy, 30s, 50MB/s")
-        m.copies = 2         # secondary copies
-        m.time_detect = 30   # 30s detect fail/start recovery
-        m.rate_flush = 50000000     # data flush rate
-        m.n_dram_1 = 16      # DRAM DIMMs / primary node
-        m.n_nvram_1 = 0      # NVRAM DIMMs / primary node
-        m.n_dram_2 = 0       # DRAM DIMMs / secondary node
-        m.n_nvram_2 = 16     # NVRAM DIMMs / secondary node
+        m.copies = 2
+        m.nv_1 = False
+        m.nv_2 = True
+        m.rate_flush = 50000000
         mlist.append(m)
 
         m = Model("prim: nv, 2 nv copy, 30s, 50MB/s")
-        m.copies = 2         # secondary copies
-        m.time_detect = 30   # 30s detect fail/start recovery
-        m.rate_flush = 50000000     # data flush rate
-        m.n_dram_1 = 0       # DRAM DIMMs / primary node
-        m.n_nvram_1 = 1      # NVRAM DIMMs / primary node
-        m.n_dram_2 = 0       # DRAM DIMMs / secondary node
-        m.n_nvram_2 = 16     # NVRAM DIMMs / secondary node
+        m.copies = 2
+        m.nv_1 = True
+        m.nv_2 = True
+        m.rate_flush = 50000000
         mlist.append(m)
 
         # run all the specified models

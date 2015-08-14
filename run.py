@@ -1,6 +1,6 @@
 #
 
-from sizes import PiB
+from sizes import MB, MiB, GB, PiB
 from RelyFuncts import YEAR, HOUR
 
 from Model import Model, Sizes, Rates, Results
@@ -14,30 +14,30 @@ def printParms(model, rates):
     """
     print ""
     print "Parameters:"
-    dram = "%dGB DRAM, %d FITs/GB, 2-bit=%f" %\
-           (model.sz_dram, model.f_dram, model.dram_2bit)
-    nvram = "%dGB NVRAM, UBER=%e" % (model.sz_nvram, model.uer_nvm)
-    if model.n_nvram_1 > 0:
-        print("\tprimary:  \t%dx%s" % (model.n_nvram_1, nvram))
-    else:
-        print("\tprimary:  \t%dx%s" % (model.n_dram_1, dram))
-    if model.n_nvram_2 > 0:
-        print("\tsecondary:\t%dx%s" % (model.n_nvram_2, nvram))
-    elif model.n_dram_2 > 0:
-        print("\tsecondary:\t%dx%s" % (model.n_dram_2, dram))
+    dram = "DRAM, %d FITs/MB (%f uncorrectable)" %\
+           (model.f_dram, model.dram_2bit)
+    nvram = "NVRAM, UBER=%e" % (model.uer_nvm)
+    print("\tprimary:  \t%dMB %s" %
+          (model.cache_1/MB, nvram if model.nv_1 else dram))
+    print("\tsecondary:\t%dMB %s" %
+          (model.cache_2/MB, nvram if model.nv_2 else dram))
     print("\tcopies:    \t%d, fan-out=%d, fan-in=%d" %
           (model.copies, model.fan_out, model.fan_in))
     print("\tcapacity:  \tused=%d%%, active=%d%%" %
           (model.cap_used * 100, model.lun_active * 100))
-    print("\tcache:     \tcached=%d%%, dirty=%d%%" %
-          (model.lun_cached * 100, model.lun_dirty * 100))
-    print("\tdet/recov: \t%ds, %dMB/s" %
-          (model.time_detect, model.rate_flush/1000000))
-    print("\tload:      \t%d/%dx%d byte writes/s" %
-          (model.write_iops, model.write_reduce, model.bsize))
+    print("\tLUNs:      \tsize=%dGB, %f/VM, %d/primary" %
+          (model.lun_size / GB, model.lun_per_vm,
+           model.lun_per_vm * model.prim_vms))
+    print("\tI/O load:  \t%d IOPS (%d), %f writes / %d (aggregation)" %
+          (model.iops, model.bsize, model.write_fract, model.write_aggr))
+    print("\trecovery:  \tdetect=%ds, max_dirty=%dMB, rate=%dMiB/s" %
+          (model.time_detect, model.max_dirty/MB, model.rate_flush/MiB))
     print("\tsoftware:  \tFITs=%d, hard=%f" % (model.f_sw, model.sw_hard))
-
     if rates is not None:
+        print("\tflushing:  \ttime=%fs, interval=%fs" %
+              (rates.time_flush, rates.interval_flush))
+        print("\tcache:     \tdirty=%f, lifetime=%fs" %
+              (rates.fract_dirty, rates.cache_life))
         print("\tloss(1):   \tFITs=%d" % (rates.fits_1_loss))
         print("\tloss(2):   \tFITs=%d" % (rates.fits_2_loss))
 

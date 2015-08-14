@@ -9,8 +9,6 @@
 # Foundation.  See file COPYING.
 #
 
-# FIX: merge these enhancements back to ceph-tools
-
 """
 basic mathematical functions used in reliability modeling
 

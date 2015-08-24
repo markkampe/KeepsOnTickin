@@ -168,7 +168,6 @@ class Results:
         l2 = rates.fits_2_loss      # secondary loss FIT rate
         dirty = model.max_dirty     # maximum dirty data / primary
         cp = model.copies           # number of secondary copies
-        Tr = rates.time_flush       # time to flush dirty data
 
         # accumulated results (segregated by case)
         #   compounded errors make it impossible to completely
@@ -184,6 +183,7 @@ class Results:
         # compute the total recovery (detect+flush) times
         tr_d = model.time_detect
         tr_r = rates.time_flush
+        Tr = (tr_d + tr_r) * SECOND
 
         # Scenario 1a: primary fails during modeled period
         P1 = 1 - Pfail(l1 * n1, period, 0)

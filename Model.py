@@ -2,7 +2,7 @@
 Input values to the simulation, and output values from the simulation
 """
 from RelyFuncts import FitRate, Pfail, multiFit
-from RelyFuncts import SECOND, MINUTE, HOUR, DAY, YEAR
+from RelyFuncts import SECOND, MINUTE, HOUR, DAY, YEAR, BILLION
 from sizes import MiB, GiB, PiB, MB, GB
 
 #
@@ -157,6 +157,11 @@ class Results:
                     3. a secondary goes down and loses data
                 We then model the probability of loss for the data
                 that was affected by the initial failure.
+
+                In cases where the probabilities are small, I
+                lazily use the expected number of failures
+                rather than the 1-P(exp,n=0) ... but this is
+                (if anything) a conservative approximation.
         """
 
         # move stuff with long names into locals
@@ -192,12 +197,11 @@ class Results:
 
         # Scenario 2a: primary suffers an NRE during modeled period
         if model.nv_1:
-            bits = 8 * rates.writes_in
-            bits *= period / SECOND
-            errs = bits * model.uer_nvm
+            bits = 8 * rates.writes_in / SECOND
+            errs = bits * model.uer_nvm * BILLION
         else:
             errs = 0
-        P2 = errs       # these can be attributed to NRE
+        P2 = 1 - Pfail(n1 * errs, period, 0)
         if debug:
             print("P1first(%d, T=%e) errs=%e -> P2=%e" %
                   (n1, period, errs, P2))

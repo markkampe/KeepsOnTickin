@@ -273,10 +273,10 @@ class Results:
             surv -= 1
 
         # tally up the loss probabilities and expentancies
-        self.p_loss_node = P1 + P3
-        self.p_loss_copy = P2 + P4
-        self.p_loss_all = P1 + P2 + P3 + P4
-        self.exp_loss_all = (P1 + P2 + P3 + P4) * L
+        self.p_loss_node = 1 - ((1 - P1) * (1 - P3))
+        self.p_loss_copy = 1 - ((1 - P2) * (1 - P4))
+        self.p_loss_all = 1 - ((1 - self.p_loss_node) * (1 - self.p_loss_copy))
+        self.exp_loss_all = self.p_loss_all * L
 
         # compute the durability
         d = 1 - self.p_loss_all

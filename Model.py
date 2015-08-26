@@ -1,7 +1,7 @@
 """
 Input values to the simulation, and output values from the simulation
 """
-from RelyFuncts import FitRate, Pfail, multiFit
+from RelyFuncts import FitRate, Pfail, Punion, multiFit
 from RelyFuncts import SECOND, MINUTE, HOUR, DAY, YEAR, BILLION
 from sizes import MiB, GiB, PiB, MB, GB
 
@@ -273,9 +273,9 @@ class Results:
             surv -= 1
 
         # tally up the loss probabilities and expentancies
-        self.p_loss_node = 1 - ((1 - P1) * (1 - P3))
-        self.p_loss_copy = 1 - ((1 - P2) * (1 - P4))
-        self.p_loss_all = 1 - ((1 - self.p_loss_node) * (1 - self.p_loss_copy))
+        self.p_loss_node = Punion(P1, P3)
+        self.p_loss_copy = Punion(P2, P4)
+        self.p_loss_all = Punion(P1, P2, P3, P4)
         self.exp_loss_all = self.p_loss_all * L
 
         # compute the durability

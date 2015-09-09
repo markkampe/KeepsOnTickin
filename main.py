@@ -29,6 +29,14 @@ def defaultTests(verbosity="default"):
         m.rate_flush = 50000000
         mlist.append(m)
 
+        m = Model("prim: v,  1 v copy, 30s, 50MB/s")
+        m.nv_1 = False
+        m.nv_2 = False
+        m.copies = 1
+        m.time_detect = 30
+        m.rate_flush = 50000000
+        mlist.append(m)
+
         m = Model("prim: v,  1 nv copy, 30s, 50MB/s")
         m.nv_1 = False
         m.nv_2 = True
@@ -41,6 +49,13 @@ def defaultTests(verbosity="default"):
         m.copies = 1
         m.nv_1 = True
         m.nv_2 = True
+        m.rate_flush = 50000000
+        mlist.append(m)
+
+        m = Model("prim: v,  2 v copy, 30s, 50MB/s")
+        m.copies = 2
+        m.nv_1 = False
+        m.nv_2 = False
         m.rate_flush = 50000000
         mlist.append(m)
 

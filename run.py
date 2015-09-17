@@ -7,7 +7,7 @@ from Model import Model, Sizes, Rates, Results
 from ColumnPrint import ColumnPrint
 
 
-def printParms(model, rates):
+def printParms(model, sizes, rates):
     """ print out selected parameters for this test
         model -- the model to be printed
         rates -- the computed FIT rates
@@ -19,27 +19,42 @@ def printParms(model, rates):
     nvram = "NVRAM, UBER=%e" % (model.uer_nvm)
     print("\tprimary:  \t%dMB %s" %
           (model.cache_1/MB, nvram if model.nv_1 else dram))
-    print("\tsecondary:\t%dMB %s" %
-          (model.cache_2/MB, nvram if model.nv_2 else dram))
-    print("\tcopies:    \t%d, fan-out=%d, fan-in=%d" %
-          (model.copies, model.fan_out, model.fan_in))
+    if not model.symmetric:
+        print("\tsecondary:\t%dMB %s" %
+              (model.cache_2/MB, nvram if model.nv_2 else dram))
     print("\tcapacity:  \tused=%d%%, active=%d%%" %
           (model.cap_used * 100, model.lun_active * 100))
-    print("\tLUNs:      \tsize=%dGB, %f/VM, %d/primary" %
+    print("\tLUNs:      \tsize=%dGB, %3.1f/VM, %d/primary" %
           (model.lun_size / GB, model.lun_per_vm,
            model.lun_per_vm * model.prim_vms))
-    print("\tI/O load:  \t%d IOPS (%d), %f writes / %d (aggregation)" %
-          (model.iops, model.bsize, model.write_fract, model.write_aggr))
+    print("\tI/O load:  \t%d IOPS (%d), %d%% writes / %d (aggregation)" %
+          (model.iops, model.bsize, 100 * model.write_fract, model.write_aggr))
     print("\trecovery:  \tdetect=%ds, max_dirty=%dMB, rate=%dMiB/s" %
           (model.time_detect, model.max_dirty/MB, model.rate_flush/MiB))
-    print("\tsoftware:  \tFITs=%d, hard=%f" % (model.f_sw, model.sw_hard))
+    print("\tsoftware:  \tFITs=%d, hard=%6.3f%%" %
+          (model.f_sw, 100 * model.sw_hard))
+    if sizes is not None:
+        print("\tcopies:    \t%d, decluster=%d" %
+              (model.copies, model.decluster))
+        if (model.symmetric):
+            print("\tcluster:   \tn=%d, fan-out=%d, fan-in=%d" %
+                  (sizes.n_primary, sizes.fan_out, sizes.fan_in))
+        else:
+            print("\tcluster:   \tnP=%d, nS=%d, fan-out=%d, fan-in=%d" %
+                  (sizes.n_primary, sizes.n_secondary,
+                   sizes.fan_out, sizes.fan_in))
+        print("\tcache/LUN: \ttotal=%f, dirty=%f" %
+             (sizes.cache_tot, sizes.cache_dirty))
     if rates is not None:
+        print("\tcache/Prim:\tdirty=%f, lifetime=%fs" %
+              (rates.fract_dirty, rates.cache_life))
         print("\tflushing:  \ttime=%fs, interval=%fs" %
               (rates.time_flush, rates.interval_flush))
-        print("\tcache:     \tdirty=%f, lifetime=%fs" %
-              (rates.fract_dirty, rates.cache_life))
-        print("\tloss(1):   \tFITs=%d" % (rates.fits_1_loss))
-        print("\tloss(2):   \tFITs=%d" % (rates.fits_2_loss))
+        if (model.symmetric):
+            print("\tloss:      \tFITs=%d" % (rates.fits_1_loss))
+        else:
+            print("\tloss(1):   \tFITs=%d" % (rates.fits_1_loss))
+            print("\tloss(2):   \tFITs=%d" % (rates.fits_2_loss))
 
 
 def run(models, verbosity="default",
@@ -99,7 +114,7 @@ def run(models, verbosity="default",
 
     # print out basic parameters (assumed not to change)
     if parm1:
-        printParms(models[0], None)
+        printParms(models[0], None, None)
 
     # print out column legends
     if descr:
@@ -126,7 +141,7 @@ def run(models, verbosity="default",
 
         # print out the model parameters
         if parms:
-            printParms(m, rates)
+            printParms(m, sizes, rates)
 
         # compute and print the reliability
         results = Results(m, sizes, rates, period, debug)

@@ -39,10 +39,10 @@ class Model:
         # architectural parameters
         self.rate_flush = 50 * MiB  # flush to backing store
         self.time_detect = 30   # detect failure/initiate recovery
-        self.fan_out = 4        # secondary/primary
-        self.fan_in = 4         # primary/secondary
-        self.copies = 2         # secondary copies
+        self.copies = 3         # primary + secondary
+        self.decluster = 1      # primary->secondary declustering
         self.max_dirty = 250 * MB   # max dirty data in primary
+        self.symmetric = False  # distinct primaries and secondaries
 
         # utilization parameters
         self.cap_used = 0.75    # how full is the backing store
@@ -91,7 +91,20 @@ class Sizes:
         # figure out how many primaries and secondaries that means
         self.n_primary = vms / model.prim_vms
         cached = self.n_primary * model.cache_1
-        self.n_secondary = cached * model.copies / model.cache_2
+        self.n_secondary = cached * (model.copies - 1) / model.cache_2
+
+        # compute what fraction of each active LUN we can cache
+        lsize = model.lun_per_vm * model.lun_size
+        self.cache_tot = model.cache_1 / lsize
+        self.cache_dirty = model.max_dirty / lsize
+
+        # compute the implied primary/secondary fan-out/fan-in
+        if (model.copies > 1):
+            self.fan_out = model.decluster * (model.copies - 1)
+            self.fan_in = self.n_primary * self.fan_out / self.n_secondary
+        else:
+            self.fan_out = 0
+            self.fan_in = 0
 
 
 class Rates:
@@ -165,14 +178,15 @@ class Results:
         """
 
         # move stuff with long names into locals
-        fi = model.fan_in           # primaries per secondary
-        fo = model.fan_out          # secondaries per primary
+        fi = sizes.fan_in           # primaries per secondary
+        fo = sizes.fan_out          # secondaries per primary
         n1 = sizes.n_primary        # number of primaries in system
         n2 = sizes.n_secondary      # number of secondaries in system
         l1 = rates.fits_1_loss      # primary loss FIT rate
         l2 = rates.fits_2_loss      # secondary loss FIT rate
         dirty = model.max_dirty     # maximum dirty data / primary
-        cp = model.copies           # number of secondary copies
+        cp = model.copies - 1       # number of secondary copies
+        dc = model.decluster        # primary->secondary dispersion
 
         # accumulated results (segregated by case)
         #   compounded errors make it impossible to completely
@@ -183,7 +197,7 @@ class Results:
         P2 = 0          # data error, starting with primary
         P3 = 0          # node failure, starting with secondary
         P4 = 0          # data loss, after secondary node failure
-        L = dirty / fo  # expected loss if things go bad
+        L = dirty / dc  # expected loss if things go bad
 
         # compute the total recovery (detect+flush) times
         tr_d = model.time_detect
@@ -241,7 +255,7 @@ class Results:
         Pnext = 1 - Pfail(l1 * fi, Tr, 0)
         if model.nv_1:
             # each affected primary will read dirty/fo bytes
-            bits = 8 * fi * dirty / fo
+            bits = 8 * fi * dirty / dc
             errs = bits * model.uer_nvm
         else:
             errs = 0

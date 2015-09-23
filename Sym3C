@@ -1,0 +1,63 @@
+#!/bin/bash ./rundot.sh
+#
+# Sym3C - a state-model for event combinations leading to data loss
+#		in a symmetric 3-copy vCACHE configuration
+#
+# Format:
+#	This is a graphvis directed graph, augmented with class/rate attributes
+#
+# processing this file:
+#	to draw and then view the graph
+#		dot -O -T png Sym3C
+#		eog Sym3C.png
+#
+digraph vCACHE {	
+	// general graphical layout parameters
+	rankdir=LR;					// left-to-right flow
+	// size="8,5"					// standard page width	
+	node [ fixedsize = true, height = 1.25 ];
+
+	// fully operational
+	node [ shape = doublecircle color = green ];
+		"OK"			[ state = "nominal" ];
+
+	node [ shape = circle color = orange ];	
+		// in service with reduced redundancy
+		"N-1"			[ state = "compromised" ];
+		"P-1,S-1"		[ state = "critical" ];
+		"S-2"			[ state = "critical" ];
+
+	node [ shape = doublecircle color = red ];	// data loss
+		// unscheduled down time
+		"FAIL"			[ state = "failed" ];
+
+	// Failure Rates
+	# Rate Multiplier Legend
+	#	N ... total number of nodes
+	#	D ... declustering factor (# secondaries in a 1 copy stripe)
+	#	C ... number of copies
+	#	Fo ... Fan-out (secondaries from one primary) = max(D,C)
+	#	Fi ... Fan-in (primaries writing to secondary) = Fo * Np / Ns
+	#
+	#	Trp ... primary fail detect + recovery time (depends on D)
+	#	Trs ... secondary fail detect + recovery time (depends on D)
+
+	# any failure can trigger this transition
+	#	the node that failed is both a primary AND a secondary
+	"OK" -> "N-1"		[ label = "1Y, N" ];
+
+	# primary fails: D secondaries contain his 1st copies
+	"N-1" -> "P-1,S-1"	[ label = "Trs, D" ];
+
+	# secondary fails: Fi primaries all have to recover
+	"N-1" -> "P-1,S-1"	[ label = "Trp, Fi" ];
+
+	# secondary fails: any surviving copy of same primary
+	"N-1" -> "S-2" 		[ label = "Trp, Fo-1" ];
+
+	# any surviving secondary of the failed primary
+	"P-1,S-1" -> "FAIL" 	[ label = "Trs, Fo-1" ];
+
+	# any primary of the first failed secondary
+	"S-2" -> "FAIL"		[ label = "Trp, Fi" ];
+}

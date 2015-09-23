@@ -1,0 +1,67 @@
+#!/bin/bash ./rundot.sh
+#
+# Asy3C - a state-model for event combinations leading to data loss
+#		in an asymmetric 3-copy vCACHE configuration
+#
+# Format:
+#	This is a graphvis directed graph, augmented with class/rate attributes
+#
+# processing this file:
+#	to draw and then view the graph
+#		dot -O -T png Asy3C
+#		eog Asy3C.png
+#
+digraph vCACHE {	
+	// general graphical layout parameters
+	rankdir=LR;					// left-to-right flow
+	// size="8,5"					// standard page width	
+	node [ fixedsize = true, height = 1.25 ];
+
+	// fully operational
+	node [ shape = doublecircle color = green ];
+		"OK"			[ state = "nominal" ];
+
+	node [ shape = circle color = orange ];	
+		// in service with reduced redundancy
+		"P-1"			[ state = "compromised" ];
+		"S-1"			[ state = "compromised" ];
+		"P-1,S-1"		[ state = "critical" ];
+		"S-2"			[ state = "critical" ];
+
+	node [ shape = doublecircle color = red ];	// data loss
+		// unscheduled down time
+		"FAIL"			[ state = "failed" ];
+
+	// Failure Rates
+	# Rate Multiplier Legend
+	#	Np ... total number of primaries
+	#	Ns ... total number of secondaries
+	#	D ... declustering factor (# secondaries in a 1 copy stripe)
+	#	C ... number of copies
+	#	Fo ... Fan-out (secondaries from one primary) = max(D,C)
+	#	Fi ... Fan-in (primaries writing to secondary) = Fo * Np / Ns
+	#
+	#	Trp ... primary fail detect + recovery time (depends on D)
+	#	Trs ... secondary fail detect + recovery time (depends on D)
+
+	# any primary can trigger this transition
+	"OK" -> "P-1"		[ label = "1Y, Np" ];
+
+	# any secondary can trigger this transition
+	"OK" -> "S-1"		[ label = "1Y, Ns" ];
+
+	# secondaries containing failed primary's first copies
+	"P-1" -> "P-1,S-1"	[ label = "Trs, D" ];
+
+	# primaries mirroring to failed secondary
+	"S-1" -> "P-1,S-1"	[ label = "Trp, Fi" ];
+
+	# remaining secondaries that could affect a single primary
+	"S-1" -> "S-2" 		[ label = "Trp, Fo-1" ];
+
+	# remaining secondaries containing failed primary's second copies
+	"P-1,S-1" -> "FAIL" 	[ label = "Trs, D" ];
+
+	# assume all primaries to first secondary are affected
+	"S-2" -> "FAIL"		[ label = "Trp, Fi" ];
+}

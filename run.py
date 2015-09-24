@@ -55,8 +55,6 @@ def printParms(m, s, r):
     if r is not None:
         print("\tcache/Prim:\tdirty=%f, lifetime=%fs" %
               (r.fract_dirty, r.cache_life))
-        print("\tflushing:  \ttime=%fs, interval=%fs" %
-              (r.time_flush, r.interval_flush))
         if (m.symmetric):
             print("\tloss:      \tFITs=%d" % (r.fits_1_loss))
         else:

@@ -157,7 +157,6 @@ class Rates:
         #   Note: we have modeled write-aggregation as a constant,
         #         but in actuality it is probably a function of the
         #         the interval between flushes
-        self.time_flush = float(m.max_dirty) / m.rate_flush
         self.fract_dirty = float(m.max_dirty) / m.cache_1
         self.writes_in = m.bsize * m.iops * m.write_fract
         self.new_writes_in = self.writes_in / m.write_aggr
@@ -199,6 +198,19 @@ class Results:
         dirty = model.max_dirty     # maximum dirty data / primary
         cp = model.copies - 1       # number of secondary copies
         dc = model.decluster        # primary->secondary dispersion
+        sym = model.symmetric       # peer-to-peer primary/secondary model
+
+        # Compute the detection and recovery times
+        Tt = model.time_timeout * SECOND
+        Td = model.time_detect * SECOND
+        b2f = dirty / dc
+        Ts = (b2f / model.rate_flush * SECOND)
+        if model.remirror and model.rate_mirror > model.rate_flush:
+            Tp = (b2f / model.rate_mirror) * SECOND
+        else:
+            Tp = Ts
+
+        # number of expected annual primary/secondary failures
 
         # accumulated results (segregated by case)
         #   compounded errors make it impossible to completely

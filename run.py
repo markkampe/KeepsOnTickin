@@ -7,54 +7,61 @@ from Model import Model, Sizes, Rates, Results
 from ColumnPrint import ColumnPrint
 
 
-def printParms(model, sizes, rates):
+def printParms(m, s, r):
     """ print out selected parameters for this test
         model -- the model to be printed
+        sizes -- the computed cluster sizes
         rates -- the computed FIT rates
     """
     print ""
     print "Parameters:"
     dram = "DRAM, %d FITs/MB (%f uncorrectable)" %\
-           (model.f_dram, model.dram_2bit)
-    nvram = "NVRAM, UBER=%e" % (model.uer_nvm)
+           (m.f_dram, m.dram_2bit)
+    nvram = "NVRAM, UBER=%e" % (m.uer_nvm)
     print("\tprimary:  \t%dMB %s" %
-          (model.cache_1/MB, nvram if model.nv_1 else dram))
-    if not model.symmetric:
+          (m.cache_1/MB, nvram if m.nv_1 else dram))
+    if not m.symmetric:
         print("\tsecondary:\t%dMB %s" %
-              (model.cache_2/MB, nvram if model.nv_2 else dram))
+              (m.cache_2/MB, nvram if m.nv_2 else dram))
     print("\tcapacity:  \tused=%d%%, active=%d%%" %
-          (model.cap_used * 100, model.lun_active * 100))
+          (m.cap_used * 100, m.lun_active * 100))
     print("\tLUNs:      \tsize=%dGB, %3.1f/VM, %d/primary" %
-          (model.lun_size / GB, model.lun_per_vm,
-           model.lun_per_vm * model.prim_vms))
-    print("\tI/O load:  \t%d IOPS (%d), %d%% writes / %d (aggregation)" %
-          (model.iops, model.bsize, 100 * model.write_fract, model.write_aggr))
-    print("\trecovery:  \tdetect=%ds, max_dirty=%dMB, rate=%dMiB/s" %
-          (model.time_detect, model.max_dirty/MB, model.rate_flush/MiB))
+          (m.lun_size / GB, m.lun_per_vm,
+           m.lun_per_vm * m.prim_vms))
+    print("\tI/O load:  \t%d(%dK)IOPS/VM, %d%% writes / %d (aggregation)" %
+          (m.iops, m.bsize/1024, 100 * m.write_fract, m.write_aggr))
+    print("\tdetection:  \tnodefail=%ds, timeout=%ds" %
+          (m.time_detect, m.time_timeout))
+    if (m.remirror):
+        print("\trecover:  \tmax_dirty=%dMB, flush=%dMiB/s, remirror=%dMiB/s" %
+              (m.max_dirty/MB, m.rate_flush/MiB, m.rate_mirror/MiB))
+    else:
+        print("\trecovery:  \tmax_dirty=%dMB, flush=%dMiB/s" %
+              (m.max_dirty/MB, m.rate_flush/MiB))
     print("\tsoftware:  \tFITs=%d, hard=%6.3f%%" %
-          (model.f_sw, 100 * model.sw_hard))
-    if sizes is not None:
+          (m.f_sw, 100 * m.sw_hard))
+    if s is not None:
         print("\tcopies:    \t%d, decluster=%d" %
-              (model.copies, model.decluster))
-        if (model.symmetric):
+              (m.copies, m.decluster))
+        if (m.symmetric):
             print("\tcluster:   \tn=%d, fan-out=%d, fan-in=%d" %
-                  (sizes.n_primary, sizes.fan_out, sizes.fan_in))
+                  (s.n_primary, s.fan_out, s.fan_in))
         else:
             print("\tcluster:   \tnP=%d, nS=%d, fan-out=%d, fan-in=%d" %
-                  (sizes.n_primary, sizes.n_secondary,
-                   sizes.fan_out, sizes.fan_in))
+                  (s.n_primary, s.n_secondary,
+                   s.fan_out, s.fan_in))
         print("\tcache/LUN: \ttotal=%f, dirty=%f" %
-             (sizes.cache_tot, sizes.cache_dirty))
-    if rates is not None:
+             (s.cache_tot, s.cache_dirty))
+    if r is not None:
         print("\tcache/Prim:\tdirty=%f, lifetime=%fs" %
-              (rates.fract_dirty, rates.cache_life))
+              (r.fract_dirty, r.cache_life))
         print("\tflushing:  \ttime=%fs, interval=%fs" %
-              (rates.time_flush, rates.interval_flush))
-        if (model.symmetric):
-            print("\tloss:      \tFITs=%d" % (rates.fits_1_loss))
+              (r.time_flush, r.interval_flush))
+        if (m.symmetric):
+            print("\tloss:      \tFITs=%d" % (r.fits_1_loss))
         else:
-            print("\tloss(1):   \tFITs=%d" % (rates.fits_1_loss))
-            print("\tloss(2):   \tFITs=%d" % (rates.fits_2_loss))
+            print("\tloss(1):   \tFITs=%d" % (r.fits_1_loss))
+            print("\tloss(2):   \tFITs=%d" % (r.fits_2_loss))
 
 
 def run(models, verbosity="default",

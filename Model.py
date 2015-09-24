@@ -37,16 +37,21 @@ class Model:
         self.m_nic = 1          # minimum NICs/node
 
         # architectural parameters
-        self.rate_flush = 50 * MiB  # flush to backing store
-        self.time_detect = 30   # detect failure/initiate recovery
         self.copies = 3         # primary + secondary
         self.decluster = 1      # primary->secondary declustering
-        self.max_dirty = 250 * MB   # max dirty data in primary
         self.symmetric = False  # distinct primaries and secondaries
+        self.remirror = True    # remirror if faster than flush
+        self.max_dirty = 250 * MB   # max dirty data in primary
+
+        # performance parameters
+        self.rate_flush = 50 * MiB      # flush to backing store
+        self.rate_mirror = 100 * MiB    # remirroring rate
+        self.time_detect = 30   # detect failure/initiate recovery
+        self.time_timeout = 10  # TCP retransmit timeout
 
         # utilization parameters
         self.cap_used = 0.75    # how full is the backing store
-        self.dedup = 3          # overall dedup savings
+        self.dedup = 3          # overall dedup savings (CAP/x)
         self.lun_active = 0.05  # fraction of LUNs in use
         self.lun_size = 50 * GB     # average LUN size
 
@@ -74,7 +79,7 @@ class Model:
 
 class Sizes:
     """ The key capacities that drive the result """
-    def __init__(self, model, capacity=1 * PiB, debug=False):
+    def __init__(self, m, capacity=1 * PiB, debug=False):
         """ compute the sizes of the cache and number of nodes
             model -- the base simulation parameters
             capacity -- capacity of the backing store
@@ -83,28 +88,35 @@ class Sizes:
 
         # figure out how many LUNs and VMs we can support
         self.total = capacity
-        used = capacity * model.cap_used * model.dedup
-        luns = used / model.lun_size
-        active = luns * model.lun_active
-        vms = active / model.lun_per_vm
+        used = capacity * m.cap_used * m.dedup
+        luns = used / m.lun_size
+        active = luns * m.lun_active
+        vms = active / m.lun_per_vm
 
         # figure out how many primaries and secondaries that means
-        self.n_primary = vms / model.prim_vms
-        cached = self.n_primary * model.cache_1
-        self.n_secondary = cached * (model.copies - 1) / model.cache_2
+        self.n_primary = vms / m.prim_vms
+        if (m.symmetric):
+            self.n_secondary = self.n_primary
+            self.m_cache_1 /= m.copies      # NOTE:
+            # This seems wasteful in that we are reserving much more remote
+            # cache mirror than we have dirty pages, but the reward is
+            # greatly simplified recovery, all copies being identical.
+        else:
+            cached = self.n_primary * m.cache_1
+            self.n_secondary = cached * (m.copies - 1) / m.cache_2
 
         # compute what fraction of each active LUN we can cache
-        lsize = model.lun_per_vm * model.lun_size
-        self.cache_tot = model.cache_1 / lsize
-        self.cache_dirty = model.max_dirty / lsize
+        lsize = m.lun_per_vm * m.lun_size
+        self.cache_tot = m.cache_1 / lsize
+        self.cache_dirty = m.max_dirty / lsize
 
         # compute the implied primary/secondary fan-out/fan-in
-        if (model.copies > 1):
-            self.fan_out = model.decluster * (model.copies - 1)
-            self.fan_in = self.n_primary * self.fan_out / self.n_secondary
-        else:
+        if m.copies < 2:
             self.fan_out = 0
             self.fan_in = 0
+        else:
+            self.fan_out = min(m.decluster, m.copies - 1)
+            self.fan_in = self.fan_out * self.n_primary / self.n_secondary
 
 
 class Rates:

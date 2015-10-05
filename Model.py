@@ -1,7 +1,7 @@
 """
 Input values to the simulation, and output values from the simulation
 """
-from RelyFuncts import FitRate, Pfail, Punion, multiFit
+from RelyFuncts import FitRate, Pfail, Pn, Punion, multiFit
 from RelyFuncts import SECOND, MINUTE, HOUR, DAY, YEAR, BILLION
 from sizes import MiB, GiB, PiB, MB, GB
 
@@ -96,8 +96,8 @@ class Sizes:
         # figure out how many primaries and secondaries that means
         self.n_primary = vms / m.prim_vms
         if (m.symmetric):
-            self.n_secondary = self.n_primary
-            self.m_cache_1 /= m.copies      # NOTE:
+            self.n_secondary = self.n_primary if m.copies > 1 else 0
+            m.cache_1 /= m.copies      # NOTE:
             # This seems wasteful in that we are reserving much more remote
             # cache mirror than we have dirty pages, but the reward is
             # greatly simplified recovery, all copies being identical.
@@ -189,16 +189,15 @@ class Results:
         """
 
         # move stuff with long names into locals
-        fi = sizes.fan_in           # primaries per secondary
-        fo = sizes.fan_out          # secondaries per primary
         n1 = sizes.n_primary        # number of primaries in system
         n2 = sizes.n_secondary      # number of secondaries in system
+        fi = min(n1, sizes.fan_in)  # primaries per secondary
+        fo = min(n2, sizes.fan_out) # secondaries per primary
         l1 = rates.fits_1_loss      # primary loss FIT rate
         l2 = rates.fits_2_loss      # secondary loss FIT rate
         dirty = model.max_dirty     # maximum dirty data / primary
-        cp = model.copies - 1       # number of secondary copies
+        scp = model.copies - 1      # number of secondary copies
         dc = model.decluster        # primary->secondary dispersion
-        sym = model.symmetric       # peer-to-peer primary/secondary model
 
         # Compute the detection and recovery times
         Tt = model.time_timeout * SECOND
@@ -210,111 +209,69 @@ class Results:
         else:
             Tp = Ts
 
-        # number of expected annual primary/secondary failures
-
-        # accumulated results (segregated by case)
-        #   compounded errors make it impossible to completely
-        #   separate node induced from copy induced errors, so
-        #   we base this distinction on "first cause"
-        #
-        P1 = 0          # node failure, starting with primary
-        P2 = 0          # data error, starting with primary
-        P3 = 0          # node failure, starting with secondary
-        P4 = 0          # data loss, after secondary node failure
-        L = dirty / dc  # expected loss if things go bad
-
-        # compute the total recovery (detect+flush) times
-        tr_d = model.time_detect
-        tr_r = rates.time_flush
-        Tr = (tr_d + tr_r) * SECOND
-
-        # Scenario 1a: primary fails during modeled period
-        P1 = 1 - Pfail(l1 * n1, period, 0)
+        # Scenario 1 begins with a failure or NRE on a primary
+        #   1a. primary node failures
+        E1f = l1 * n1 * period / BILLION
         if debug:
-            print("P1first(%d, T=%e)=%e -> P1=%e" % (n1, period, P1, P1))
+            print("")
+            print("1a: E1fail(%d * %d, T=%e)=%f" % (n1, l1, period, E1f))
 
-        # Scenario 2a: primary suffers an NRE during modeled period
+        #   1b. expected number of primary UREs
         if model.nv_1:
-            bits = 8 * rates.writes_in / SECOND
-            errs = bits * model.uer_nvm * BILLION
-        else:
-            errs = 0
-        P2 = 1 - Pfail(n1 * errs, period, 0)
-        if debug:
-            print("P1first(%d, T=%e) errs=%e -> P2=%e" %
-                  (n1, period, errs, P2))
-
-        # Scenario 1b/2b: all secondary copies are lost
-        i = cp
-        surv = n2
-        while i > 0:
-            # at most fan_out secondaries participate in recovery
-            Pnext = 1 - Pfail(l2 * min(fo, surv), Tr, 0)
-            if model.nv_2:
-                # all of the secondaries combined read dirty bytes
-                bits = 8 * dirty
-                errs = bits * model.uer_nvm
-            else:
-                errs = 0
-            if P2 == 0:
-                P2 = P1 * errs  # these can be attributed to NRE
-                P1 *= Pnext
-            else:
-                P1 *= (Pnext + errs)
-                P2 *= (Pnext + errs)
+            bits = 8 * rates.writes_in / SECOND     # bits/hour
+            errs = bits * model.uer_nvm * BILLION   # UER/B-hours
+            E1e = n1 * errs * period / BILLION
             if debug:
-                print("P2next(%d, Tr=%e) = %e, errs=%e -> P1=%e" %
-                     (i, Tr, Pnext, errs, P1))
-                print("P2next(%d, Tr=%e) = %e, errs=%e -> P2=%e" %
-                     (i, Tr, Pnext, errs, P1))
-            i -= 1
-            surv -= 1
-
-        # Scenario 3a: secondary fails during modeled period
-        P3 = 1 - Pfail(l2 * n2, period, 0)
-        if debug:
-            print("P2first(%d, T=%e) -> P3=%e" % (n2, period, P3))
-
-        # Scenario 3b: primary fails during flush
-        Pnext = 1 - Pfail(l1 * fi, Tr, 0)
-        if model.nv_1:
-            # each affected primary will read dirty/fo bytes
-            bits = 8 * fi * dirty / dc
-            errs = bits * model.uer_nvm
+                print("1b: E1nre(%d * %d, T=%e)=%f" % (n1, errs, period, E1e))
         else:
-            errs = 0
-        P4 = P3 * errs      # these can be attributed to NRE
-        P3 *= Pnext
-        if debug:
-            print("P1next(%d, Tr=%e) = %e, errs=%e -> P3=%e" %
-                 (fi, Tr, Pnext, errs, P3))
+            E1e = 0
 
-        # Scenario 3c: all copies fail during recovery
-        i = cp - 1
-        surv = n2 - 1
-        while i > 0:
-            # at most fan_out secondaries participate in recovery
-            # PROBABLY WRONG ... BUT LOW IMPACT
-            Pnext = 1 - Pfail(l2 * min(fo, surv), Tr, 0)
-            if model.nv_2:
-                # all of the secondaries combined read sz bytes
-                bits = 8 * dirty / fo       # FIX
-                errs = bits * model.uer_nvm
-            else:
-                errs = 0
-            P3 *= (Pnext + errs)
-            P4 *= (Pnext + errs)
+        # ... after which all other copies are lost
+        if fo ==  0:
+            # there are no copies ... we lose data every time
+            P1f =  1 - Pn(E1f, 0)
+            P1e1 = 1 -  Pn(E1e, 0)
             if debug:
-                print("P2next(%d, Tr=%e) = %e, errs=%e -> P3=%e" %
-                     (i, Tr, Pnext, errs, P3))
-            i -= 1
-            surv -= 1
+                print("    P1fail(E1F)=%e" % (P1f))
+                print("    P1nre(E1E)=%e" % (P1e1))
+        else: # C-1/fan-out secondaries fail within Td+Ts
+            P1f = Pfail(E1f * fo * l2, Td + Ts, scp)
+            P1e1 = Pfail(E1e * fo * l2, Td + Ts, scp)
+            # FIX: compute (negligible) secondary URE during flush
+            if debug:
+                print("    P1fail(E1F * %d * %d, T=%e+%e)=%e" % (fo, l2, Td, Ts, P1f))
+                print("    P1nre(E1E * %d * %d, T=%e+%e)=%e" % (fo, l2, Td, Ts, P1e1))
+
+        # Scenario 2 begins with a failure on a secondary
+        E2f = l2 * n2 * period / BILLION
+        if debug:
+            print("2:  E2fail(%d * %d, T=%e)=%f" % (n2, l2, period, E2f))
+
+        # an affected primary fails within the timeout+flush window
+        P2f1 = 1 - Pfail(E2f * fi * l1, Tt + Tp, 0)
+            # NOTE: primary UREs during flushing are included in 1b
+        if debug:
+            print("    P2fail1(E2F * %d * %d, T=%e+%e)=%e" % (fi, l1, Tt, Tp, P2f1))
+
+        # all surviving secondaries fail within Tt + Tp + Td + Ts
+        if scp > 1:
+            P2f2 = Pfail((fo - 1) * l2, Tt + Tp + Td + Ts, scp - 1)
+            # FIX: compute (negligible) secondary URE during flush
+            if debug:
+                print("    P2fail2(%d * %d, T=%d+%d+%d+%d)=%e" %
+                      (fo - 1, l2, Tt, Tp, Td, Ts, P2f2))
+        else:
+            P2f2 = 1.0
+
+        P2f = P2f1 * P2f2
+        if debug:
+            print("    P2F = %e * %e = %e" % (P2f1, P2f2, P2f))
 
         # tally up the loss probabilities and expentancies
-        self.p_loss_node = Punion(P1, P3)
-        self.p_loss_copy = Punion(P2, P4)
-        self.p_loss_all = Punion(P1, P2, P3, P4)
-        self.exp_loss_all = self.p_loss_all * L
+        self.p_loss_node = Punion(P1f, P2f)
+        self.p_loss_copy = Punion(P1e1)
+        self.p_loss_all = Punion(P1f, P2f, P1e1)
+        self.exp_loss_all = self.p_loss_all * b2f   # low if exp > 1
 
         # compute the durability
         d = 1 - self.p_loss_all

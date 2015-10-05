@@ -114,6 +114,12 @@ def run(models, verbosity="default",
     elif verbosity == "debug":
         debug = True
         parm1 = False
+    elif verbosity == "trace":
+        debug = True
+        headings = False
+        parm1 = False
+        parms = False
+        descr = False
     else:
         parms = False
 

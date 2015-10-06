@@ -74,14 +74,15 @@ def run(models, verbosity="default",
 
     # define the column headings
     heads = ("configuration", "<p,s>/PiB", "durability",
-             "PL(node)", "PL(NRE)", "loss/PiB")
+             "PL(node)", "PL(NRE)", "BW(recov)", "T(recov)")
     legends = [
         "configuration being modeled",
         "<primaries, secondaries> per petabyte",
         "probability of object survival*",
         "probability of loss due to node failures*",
         "probability of loss due to NREs during recovery*",
-        "expected data loss per petabyte*"
+        "peak recovery bandwidth",
+        "max detect/recovery time"
     ]
 
     # figure out the longest description
@@ -99,22 +100,22 @@ def run(models, verbosity="default",
     headings = True     # column headings
     parms = True        # all parameters for every model
     debug = False       # diagnostic output
-    if verbosity == "parameters":
+    if verbosity == "parameters":   # per-test parameters
         parm1 = False
         descr = False
-    elif verbosity == "headings":
+    elif verbosity == "headings":   # output and headings
         parm1 = False
         parms = False
         descr = False
-    elif verbosity == "data":
+    elif verbosity == "data":   # minimal - just the output
         parm1 = False
         parms = False
         descr = False
         headings = False
-    elif verbosity == "debug":
+    elif verbosity == "all":    # pretty much everyting
         debug = True
         parm1 = False
-    elif verbosity == "trace":
+    elif verbosity == "debug":  # debug only
         debug = True
         headings = False
         parm1 = False
@@ -162,5 +163,7 @@ def run(models, verbosity="default",
         s.append(format.printDurability(results.durability))
         s.append(format.printProbability(results.p_loss_node))
         s.append(format.printProbability(results.p_loss_copy))
-        s.append(format.printFloat(results.exp_loss_all))
+        bw = max(results.bw_sfail, results.bw_pfail)
+        s.append(format.printSize(bw, 1000) + "/s")
+        s.append(format.printFloat(results.Trecov)+"s")
         format.printLine(s)

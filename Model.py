@@ -62,6 +62,7 @@ class Model:
         self.iops = 500         # avg IOPS per VM
         self.write_fract = 0.5  # fraction of write operations
         self.write_aggr = 4     # savings from write aggregation
+        self.read_hit = 0.05    # read hit rate from writeback cache
 
         # failure rates for which there is real data
         self.f_ctlr = 4000      # per board
@@ -97,17 +98,18 @@ class Sizes:
         self.n_primary = vms / m.prim_vms
         if (m.symmetric):
             self.n_secondary = self.n_primary if m.copies > 1 else 0
-            m.cache_1 /= m.copies      # NOTE:
+            pcache = m.cache_1 / m.copies
             # This seems wasteful in that we are reserving much more remote
             # cache mirror than we have dirty pages, but the reward is
             # greatly simplified recovery, all copies being identical.
         else:
-            cached = self.n_primary * m.cache_1
+            pcache = m.cache_1
+            cached = self.n_primary * pcache
             self.n_secondary = cached * (m.copies - 1) / m.cache_2
 
         # compute what fraction of each active LUN we can cache
         lsize = m.lun_per_vm * m.lun_size
-        self.cache_tot = m.cache_1 / lsize
+        self.cache_tot = pcache / lsize
         self.cache_dirty = m.max_dirty / lsize
 
         # compute the implied primary/secondary fan-out/fan-in
@@ -115,7 +117,7 @@ class Sizes:
             self.fan_out = 0
             self.fan_in = 0
         else:
-            self.fan_out = min(m.decluster, m.copies - 1)
+            self.fan_out = max(m.decluster, m.copies - 1)
             self.fan_in = self.fan_out * self.n_primary / self.n_secondary
 
 
@@ -157,11 +159,12 @@ class Rates:
         #   Note: we have modeled write-aggregation as a constant,
         #         but in actuality it is probably a function of the
         #         the interval between flushes
-        self.fract_dirty = float(m.max_dirty) / m.cache_1
+        pcache = m.cache_1 / m.copies if m.symmetric else m.cache_1
+        self.fract_dirty = float(m.max_dirty) / pcache
         self.writes_in = m.bsize * m.iops * m.write_fract
         self.new_writes_in = self.writes_in / m.write_aggr
         self.interval_flush = float(m.max_dirty) / self.new_writes_in
-        self.cache_life = float(m.cache_1) / self.new_writes_in
+        self.cache_life = float(pcache) / self.new_writes_in
 
 
 class Results:
@@ -192,22 +195,31 @@ class Results:
         n1 = sizes.n_primary        # number of primaries in system
         n2 = sizes.n_secondary      # number of secondaries in system
         fi = min(n1, sizes.fan_in)  # primaries per secondary
-        fo = min(n2, sizes.fan_out) # secondaries per primary
+        fo = min(n2, sizes.fan_out)     # secondaries per primary
         l1 = rates.fits_1_loss      # primary loss FIT rate
         l2 = rates.fits_2_loss      # secondary loss FIT rate
         dirty = model.max_dirty     # maximum dirty data / primary
         scp = model.copies - 1      # number of secondary copies
         dc = model.decluster        # primary->secondary dispersion
+        BWp = model.rate_flush      # primary recovery speed
+        BWs = model.rate_flush      # secondary recovery speed
 
         # Compute the detection and recovery times
         Tt = model.time_timeout * SECOND
         Td = model.time_detect * SECOND
         b2f = dirty / dc
-        Ts = (b2f / model.rate_flush * SECOND)
+        Ts = b2f / BWs * SECOND
         if model.remirror and model.rate_mirror > model.rate_flush:
-            Tp = (b2f / model.rate_mirror) * SECOND
-        else:
-            Tp = Ts
+            BWp = model.rate_mirror
+        Tp = b2f / BWp * SECOND
+        self.Trecov = max(Tt+Tp, Td+Ts) / SECOND
+
+        # estimate the network traffic associated with normal I/O
+        bps = model.bsize * model.iops * model.prim_vms * n1
+        self.bw_write = model.write_fract * bps
+        self.bw_read = (1 - model.read_hit) * (1 - model.write_fract) * bps
+        self.bw_mirror = self.bw_write * scp
+        self.bw_flush = self.bw_write / model.write_aggr
 
         # Scenario 1 begins with a failure or NRE on a primary
         #   1a. primary node failures
@@ -227,20 +239,24 @@ class Results:
             E1e = 0
 
         # ... after which all other copies are lost
-        if fo ==  0:
+        if fo == 0:
             # there are no copies ... we lose data every time
-            P1f =  1 - Pn(E1f, 0)
-            P1e1 = 1 -  Pn(E1e, 0)
+            P1f = 1 - Pn(E1f, 0)
+            P1e1 = 1 - Pn(E1e, 0)
+            self.bw_pfail = 0       # but we don't use much bw :-)
             if debug:
                 print("    P1fail(E1F)=%e" % (P1f))
                 print("    P1nre(E1E)=%e" % (P1e1))
-        else: # C-1/fan-out secondaries fail within Td+Ts
+        else:   # C-1/fan-out secondaries fail within Td+Ts
             P1f = Pfail(E1f * fo * l2, Td + Ts, scp)
             P1e1 = Pfail(E1e * fo * l2, Td + Ts, scp)
+            self.bw_pfail = BWs * fo        # expected recovery bandwidth
             # FIX: compute (negligible) secondary URE during flush
             if debug:
-                print("    P1fail(E1F * %d * %d, T=%e+%e)=%e" % (fo, l2, Td, Ts, P1f))
-                print("    P1nre(E1E * %d * %d, T=%e+%e)=%e" % (fo, l2, Td, Ts, P1e1))
+                print("    P1fail(E1F * %d * %d, T=%e+%e)=%e" %
+                      (fo, l2, Td, Ts, P1f))
+                print("    P1nre(E1E * %d * %d, T=%e+%e)=%e" %
+                      (fo, l2, Td, Ts, P1e1))
 
         # Scenario 2 begins with a failure on a secondary
         E2f = l2 * n2 * period / BILLION
@@ -250,15 +266,17 @@ class Results:
         # an affected primary fails within the timeout+flush window
         P2f1 = 1 - Pfail(E2f * fi * l1, Tt + Tp, 0)
             # NOTE: primary UREs during flushing are included in 1b
+        self.bw_sfail = BWp * fi    # expected recovery bandwidth
         if debug:
-            print("    P2fail1(E2F * %d * %d, T=%e+%e)=%e" % (fi, l1, Tt, Tp, P2f1))
+            print("    P2fail1(E2F * %d * %d, T=%e+%e)=%e" %
+                  (fi, l1, Tt, Tp, P2f1))
 
         # all surviving secondaries fail within Tt + Tp + Td + Ts
         if scp > 1:
             P2f2 = Pfail((fo - 1) * l2, Tt + Tp + Td + Ts, scp - 1)
             # FIX: compute (negligible) secondary URE during flush
             if debug:
-                print("    P2fail2(%d * %d, T=%d+%d+%d+%d)=%e" %
+                print("    P2fail2(%d * %d, T=%e+%e+%e+%e)=%e" %
                       (fo - 1, l2, Tt, Tp, Td, Ts, P2f2))
         else:
             P2f2 = 1.0
@@ -271,7 +289,6 @@ class Results:
         self.p_loss_node = Punion(P1f, P2f)
         self.p_loss_copy = Punion(P1e1)
         self.p_loss_all = Punion(P1f, P2f, P1e1)
-        self.exp_loss_all = self.p_loss_all * b2f   # low if exp > 1
 
         # compute the durability
         d = 1 - self.p_loss_all

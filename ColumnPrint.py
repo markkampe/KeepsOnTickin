@@ -136,5 +136,8 @@ class ColumnPrint:
         else:
             return "%9.3e" % (p)
 
-    def printFloat(self, f):
+    def printExp(self, f):
         return "%9.3e" % (f)
+
+    def printFloat(self, f):
+        return "%9.3f" % (f)

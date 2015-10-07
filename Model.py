@@ -204,6 +204,20 @@ class Results:
         BWp = model.rate_flush      # primary recovery speed
         BWs = model.rate_flush      # secondary recovery speed
 
+        # compute the equivalent FIT rates for UREs
+        if model.nv_1:  # based on average write flush speed
+            u1 = rates.writes_in * 8 * model.uer_nvm * BILLION / SECOND
+        else:
+            u1 = 0
+        if model.nv_2:  # based on maximum recovery/flush speed
+            u2 = BWs * 8 * model.uer_nvm * BILLION / SECOND
+            # WARNING: only lasts for revovery time, detect doesn't count
+        else:
+            u2 = 0
+        if debug:
+            print("")
+            print("FIT(uer,1) = %e, FIT(UER,2) = %e" % (u1, u2))
+
         # Compute the detection and recovery times
         Tt = model.time_timeout * SECOND
         Td = model.time_detect * SECOND
@@ -222,41 +236,31 @@ class Results:
         self.bw_flush = self.bw_write / model.write_aggr
 
         # Scenario 1 begins with a failure or NRE on a primary
-        #   1a. primary node failures
-        E1f = l1 * n1 * period / BILLION
+        E1f = l1 * n1 * period / BILLION        # 1f: primary node failures
+        E1e = u1 * n1 * period / BILLION        # 1e: primary UREs
         if debug:
-            print("")
             print("1a: E1fail(%d * %d, T=%e)=%f" % (n1, l1, period, E1f))
-
-        #   1b. expected number of primary UREs
-        if model.nv_1:
-            bits = 8 * rates.writes_in / SECOND     # bits/hour
-            errs = bits * model.uer_nvm * BILLION   # UER/B-hours
-            E1e = n1 * errs * period / BILLION
-            if debug:
-                print("1b: E1nre(%d * %d, T=%e)=%f" % (n1, errs, period, E1e))
-        else:
-            E1e = 0
+            print("1b: E1nre(%d * %d, T=%e)=%f" % (n1, u1, period, E1e))
 
         # ... after which all other copies are lost
         if fo == 0:
             # there are no copies ... we lose data every time
             P1f = 1 - Pn(E1f, 0)
-            P1e1 = 1 - Pn(E1e, 0)
+            P1e = 1 - Pn(E1e, 0)
             self.bw_pfail = 0       # but we don't use much bw :-)
             if debug:
                 print("    P1fail(E1F)=%e" % (P1f))
-                print("    P1nre(E1E)=%e" % (P1e1))
+                print("    P1nre(E1E)=%e" % (P1e))
         else:   # C-1/fan-out secondaries fail within Td+Ts
-            P1f = Pfail(E1f * fo * l2, Td + Ts, scp)
-            P1e1 = Pfail(E1e * fo * l2, Td + Ts, scp)
-            self.bw_pfail = BWs * fo        # expected recovery bandwidth
-            # FIX: compute (negligible) secondary URE during flush
+            ue2 = u2 * Ts / (Td + Ts)       # scale UER FIT rate
+            P1f = Pfail(E1f * fo * (l2 + ue2), Td + Ts, scp)
+            P1e = Pfail(E1e * fo * (l2 + ue2), Td + Ts, scp)
             if debug:
-                print("    P1fail(E1F * %d * %d, T=%e+%e)=%e" %
-                      (fo, l2, Td, Ts, P1f))
-                print("    P1nre(E1E * %d * %d, T=%e+%e)=%e" %
-                      (fo, l2, Td, Ts, P1e1))
+                print("    P1fail(E1F * %d * (%d+%d), T=%e+%e)=%e" %
+                      (fo, l2, ue2, Td, Ts, P1f))
+                print("    P1nre(E1E * %d * (%d+%d), T=%e+%e)=%e" %
+                      (fo, l2, ue2, Td, Ts, P1e))
+            self.bw_pfail = BWs * fo        # expected recovery bandwidth
 
         # Scenario 2 begins with a failure on a secondary
         E2f = l2 * n2 * period / BILLION
@@ -273,11 +277,11 @@ class Results:
 
         # all surviving secondaries fail within Tt + Tp + Td + Ts
         if scp > 1:
-            P2f2 = Pfail((fo - 1) * l2, Tt + Tp + Td + Ts, scp - 1)
-            # FIX: compute (negligible) secondary URE during flush
+            ue2 = u2 * Ts / (Tt + Tp + Td + Ts)     # scale UER FIT rate
+            P2f2 = Pfail((fo - 1) * (l2 + ue2), Tt + Tp + Td + Ts, scp - 1)
             if debug:
-                print("    P2fail2(%d * %d, T=%e+%e+%e+%e)=%e" %
-                      (fo - 1, l2, Tt, Tp, Td, Ts, P2f2))
+                print("    P2fail2(%d * (%d+%d), T=%e+%e+%e+%e)=%e" %
+                      (fo - 1, l2, ue2, Tt, Tp, Td, Ts, P2f2))
         else:
             P2f2 = 1.0
 
@@ -287,8 +291,8 @@ class Results:
 
         # tally up the loss probabilities and expentancies
         self.p_loss_node = Punion(P1f, P2f)
-        self.p_loss_copy = Punion(P1e1)
-        self.p_loss_all = Punion(P1f, P2f, P1e1)
+        self.p_loss_copy = Punion(P1e)
+        self.p_loss_all = Punion(P1f, P2f, P1e)
 
         # compute the durability
         d = 1 - self.p_loss_all

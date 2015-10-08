@@ -5,15 +5,6 @@ from RelyFuncts import FitRate, Pfail, Pn, Punion, multiFit
 from RelyFuncts import SECOND, MINUTE, HOUR, DAY, YEAR, BILLION
 from sizes import MiB, GiB, PiB, MB, GB
 
-#
-# TODO
-#   This model assumes that disjoint primaries and secondaries.
-#   If we want to support peer-to-peer mirroring, we need to:
-#       1. Model: we must apportion memory between primary and secondary copies
-#       2. Results: we lose distinction between primary and secondary failures
-#       3. Results: node failure represents both primary and secondary failures
-#       4. Results: surviving node count for subsequent failures changes
-
 
 class Model:
     """ a collection of simulation parameters """
@@ -151,9 +142,11 @@ class Rates:
         if not m.nv_1:
             self.fits_1_loss += m.f_sw
             self.fits_1_loss += m.cache_1 * m.f_dram * m.dram_2bit / MB
+            # TODO: is this a valid modeling of fatal memory errors
         if not m.nv_2:
             self.fits_2_loss += m.f_sw
             self.fits_2_loss += m.cache_2 * m.f_dram * m.dram_2bit / MB
+            # TODO: is this a valid modeling of fatal memory errors
 
         # compute a few other interesting cache rate/use parameters
         #   Note: we have modeled write-aggregation as a constant,
@@ -184,12 +177,7 @@ class Results:
                     3. a secondary goes down and loses data
                 We then model the probability of loss for the data
                 that was affected by the initial failure.
-
-                In cases where the probabilities are small, I
-                lazily use the expected number of failures
-                rather than the 1-P(exp,n=0) ... but this is
-                (if anything) a conservative approximation.
-        """
+                """
 
         # move stuff with long names into locals
         n1 = sizes.n_primary        # number of primaries in system
@@ -212,6 +200,8 @@ class Results:
         if model.nv_2:  # based on maximum recovery/flush speed
             u2 = BWs * 8 * model.uer_nvm * BILLION / SECOND
             # WARNING: only lasts for revovery time, detect doesn't count
+            # TODO: this assumes uer proportinal to the number of bits read
+            #       it may be proportional to the number of bits written
         else:
             u2 = 0
         if debug:
@@ -254,7 +244,9 @@ class Results:
         else:   # C-1/fan-out secondaries fail within Td+Ts
             ue2 = u2 * Ts / (Td + Ts)       # scale UER FIT rate
             P1f = Pfail(E1f * fo * (l2 + ue2), Td + Ts, scp)
+            # TODO: find a way to separate the l2 from ue2 induced losses
             P1e = Pfail(E1e * fo * (l2 + ue2), Td + Ts, scp)
+            # TODO: sanity check these vs multiplied probabilities
             if debug:
                 print("    P1fail(E1F * %d * (%d+%d), T=%e+%e)=%e" %
                       (fo, l2, ue2, Td, Ts, P1f))
@@ -279,6 +271,7 @@ class Results:
         if scp > 1:
             ue2 = u2 * Ts / (Tt + Tp + Td + Ts)     # scale UER FIT rate
             P2f2 = Pfail((fo - 1) * (l2 + ue2), Tt + Tp + Td + Ts, scp - 1)
+            # TODO: find a way to separate the l2 from ue2 induced losses
             if debug:
                 print("    P2fail2(%d * (%d+%d), T=%e+%e+%e+%e)=%e" %
                       (fo - 1, l2, ue2, Tt, Tp, Td, Ts, P2f2))

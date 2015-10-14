@@ -200,7 +200,7 @@ class Results:
         if model.nv_2:  # based on maximum recovery/flush speed
             u2 = BWs * 8 * model.uer_nvm * BILLION / SECOND
             # WARNING: only lasts for revovery time, detect doesn't count
-            # TODO: this assumes uer proportinal to the number of bits read
+            # TODO: this assumes uer proportional to the number of bits read
             #       it may be proportional to the number of bits written
         else:
             u2 = 0
@@ -225,16 +225,17 @@ class Results:
         self.bw_mirror = self.bw_write * scp
         self.bw_flush = self.bw_write / model.write_aggr
 
-        # Scenario 1 begins with a failure or NRE on a primary
+        # Expected number of initial failure events per year
         E1f = l1 * n1 * period / BILLION        # 1f: primary node failures
         E1e = u1 * n1 * period / BILLION        # 1e: primary UREs
+        E2f = l2 * n2 * period / BILLION        # 2e: secondary node failures
         if debug:
             print("1a: E1fail(%d * %d, T=%e)=%f" % (n1, l1, period, E1f))
             print("1b: E1nre(%d * %d, T=%e)=%f" % (n1, u1, period, E1e))
+            print("2:  E2fail(%d * %d, T=%e)=%f" % (n2, l2, period, E2f))
 
-        # ... after which all other copies are lost
+        # if there are no copies, primary failure = data loss
         if fo == 0:
-            # there are no copies ... we lose data every time
             P1f = 1 - Pn(E1f, 0)
             P1e = 1 - Pn(E1e, 0)
             self.bw_pfail = 0       # but we don't use much bw :-)
@@ -244,22 +245,19 @@ class Results:
         else:   # C-1/fan-out secondaries fail within Td+Ts
             ue2 = u2 * Ts / (Td + Ts)       # scale UER FIT rate
             P1f = Pfail(E1f * fo * (l2 + ue2), Td + Ts, scp)
-            # TODO: find a way to separate the l2 from ue2 induced losses
             P1e = Pfail(E1e * fo * (l2 + ue2), Td + Ts, scp)
-            # TODO: sanity check these vs multiplied probabilities
             if debug:
                 print("    P1fail(E1F * %d * (%d+%d), T=%e+%e)=%e" %
                       (fo, l2, ue2, Td, Ts, P1f))
                 print("    P1nre(E1E * %d * (%d+%d), T=%e+%e)=%e" %
                       (fo, l2, ue2, Td, Ts, P1e))
+            # crude attempt to separate 2ndary NREs from node failures
+            nre = P1f * ue2 / (l2 + ue2)
+            P1f -= nre;
+            P1e += nre;
             self.bw_pfail = BWs * fo        # expected recovery bandwidth
 
-        # Scenario 2 begins with a failure on a secondary
-        E2f = l2 * n2 * period / BILLION
-        if debug:
-            print("2:  E2fail(%d * %d, T=%e)=%f" % (n2, l2, period, E2f))
-
-        # an affected primary fails within the timeout+flush window
+        # if a secondary fails, do any primaries fail within recovery window
         P2f1 = 1 - Pfail(E2f * fi * l1, Tt + Tp, 0)
             # NOTE: primary UREs during flushing are included in 1b
         self.bw_sfail = BWp * fi    # expected recovery bandwidth
@@ -271,21 +269,26 @@ class Results:
         if scp > 1:
             ue2 = u2 * Ts / (Tt + Tp + Td + Ts)     # scale UER FIT rate
             P2f2 = Pfail((fo - 1) * (l2 + ue2), Tt + Tp + Td + Ts, scp - 1)
-            # TODO: find a way to separate the l2 from ue2 induced losses
             if debug:
                 print("    P2fail2(%d * (%d+%d), T=%e+%e+%e+%e)=%e" %
                       (fo - 1, l2, ue2, Tt, Tp, Td, Ts, P2f2))
+            # crude attempt to separate 2ndary NREs from node failures
+            P2e2 = P2f2 * ue2 / (l2 + ue2)
+            P2f2 -= P2e2
         else:
             P2f2 = 1.0
+            P2e2 = 0.0
 
         P2f = P2f1 * P2f2
+        P2e = P2f1 * P2e2
         if debug:
             print("    P2F = %e * %e = %e" % (P2f1, P2f2, P2f))
+            print("    P2E = %e * %e = %e" % (P2f1, P2e2, P2e))
 
         # tally up the loss probabilities and expentancies
         self.p_loss_node = Punion(P1f, P2f)
-        self.p_loss_copy = Punion(P1e)
-        self.p_loss_all = Punion(P1f, P2f, P1e)
+        self.p_loss_copy = Punion(P1e, P2e)
+        self.p_loss_all = Punion(P1f, P2f, P1e, P2e)
 
         # compute the durability
         d = 1 - self.p_loss_all

@@ -159,7 +159,10 @@ def run(models, verbosity="default",
         results = Results(m, sizes, rates, period, debug)
         s = list()
         s.append(m.descr)
-        s.append("<%d,%d>" % (sizes.n_primary, sizes.n_secondary))
+        if m.symmetric:
+            s.append("<%d>" % (sizes.n_primary))
+        else:
+            s.append("<%d,%d>" % (sizes.n_primary, sizes.n_secondary))
         s.append(format.printDurability(results.durability))
         s.append(format.printProbability(results.p_loss_node))
         s.append(format.printProbability(results.p_loss_copy))

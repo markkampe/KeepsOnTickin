@@ -225,7 +225,7 @@ class Results:
         if model.remirror and model.rate_mirror > model.rate_flush:
             BWp = model.rate_mirror
         Tp = b2f / BWp * SECOND
-        self.Trecov = max(Tt+Tp, Td+Ts) / SECOND
+        self.Trecov = max(Tt+Tp, Td+Ts) / SECOND if scp > 0 else 0
 
         # estimate the network traffic associated with normal I/O
         bps = model.bsize * model.iops * model.prim_vms * n1

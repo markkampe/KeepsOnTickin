@@ -167,6 +167,10 @@ def run(models, verbosity="default",
         s.append(format.printProbability(results.p_loss_node))
         s.append(format.printProbability(results.p_loss_copy))
         bw = max(results.bw_sfail, results.bw_pfail)
-        s.append(format.printSize(bw, 1000) + "/s")
-        s.append(format.printFloat(results.Trecov)+"s")
+        if bw > 0:
+            s.append(format.printSize(bw, 1000) + "/s")
+            s.append(format.printFloat(results.Trecov)+"s")
+        else:
+            s.append("n/a")
+            s.append("n/a")
         format.printLine(s)

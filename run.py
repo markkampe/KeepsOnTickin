@@ -17,7 +17,7 @@ def printParms(m, s, r):
     print "Parameters:"
     dram = "DRAM, %d FITs/MB (%f uncorrectable)" %\
            (m.f_dram, m.dram_2bit)
-    nvram = "NVRAM, UBER=%e" % (m.uer_nvm)
+    nvram = "NVRAM, R-BER=%e, W-BER=%e" % (m.ber_nvm_r, m.ber_nvm_w)
     print("\tprimary:  \t%dMB %s" %
           (m.cache_1/MB, nvram if m.nv_1 else dram))
     if not m.symmetric:

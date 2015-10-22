@@ -61,7 +61,8 @@ class Model:
         self.f_fan = 518        # per fan
         self.f_nic = 200        # per NIC
         self.f_dram = 10        # per MB
-        self.uer_nvm = 1.0E-17  # typical number for MLC nand
+        self.ber_nvm_r = 1.0E-17  # read Bit Error Rate
+        self.ber_nvm_w = 0.0    # write Bit Error Rate
         self.f_sw = FitRate(4, YEAR)    # node panics
 
         # magic numbers we can only guess at
@@ -193,20 +194,28 @@ class Results:
         BWs = model.rate_flush      # secondary recovery speed
 
         # compute the equivalent FIT rates for UREs
-        if model.nv_1:  # based on average write flush speed
-            u1 = rates.writes_in * 8 * model.uer_nvm * BILLION / SECOND
+        if model.nv_1:
+            # based on average incoming traffic
+            u1 = rates.writes_in * (model.ber_nvm_w + model.ber_nvm_r)
         else:
             u1 = 0
-        if model.nv_2:  # based on maximum recovery/flush speed
-            u2 = BWs * 8 * model.uer_nvm * BILLION / SECOND
-            # WARNING: only lasts for revovery time, detect doesn't count
-            # TODO: this assumes uer proportional to the number of bits read
-            #       it may be proportional to the number of bits written
+        if model.nv_2:
+            # based on average mirroring traffic per secondary
+            u2w = rates.writes_in * scp * model.ber_nvm_w / max(fo, 1)
+            # based on maximum secondary flush rate
+            u2r = BWs * model.ber_nvm_r
         else:
-            u2 = 0
+            u2r = 0
+            u2w = 0
+
+        # expected bit errors per billion hours
+        u1 *= 8 * BILLION / SECOND
+        u2w *= 8 * BILLION / SECOND
+        u2r *= 8 * BILLION / SECOND
         if debug:
             print("")
-            print("FIT(uer,1) = %e, FIT(UER,2) = %e" % (u1, u2))
+            print("FIT(BER,1) = %e, FIT(UER,2R) = %e, FIT(BER,2W) = %e" %
+                  (u1, u2r, u2w))
 
         # Compute the detection and recovery times
         Tt = model.time_timeout * SECOND
@@ -243,7 +252,7 @@ class Results:
                 print("    P1fail(E1F)=%e" % (P1f))
                 print("    P1nre(E1E)=%e" % (P1e))
         else:   # C-1/fan-out secondaries fail within Td+Ts
-            ue2 = u2 * Ts / (Td + Ts)       # scale UER FIT rate
+            ue2 = u2r * Ts / (Td + Ts)       # scale UER FIT rate
             P1f = Pfail(E1f * fo * (l2 + ue2), Td + Ts, scp)
             P1e = Pfail(E1e * fo * (l2 + ue2), Td + Ts, scp)
             if debug:
@@ -253,8 +262,8 @@ class Results:
                       (fo, l2, ue2, Td, Ts, P1e))
             # crude attempt to separate 2ndary NREs from node failures
             nre = P1f * ue2 / (l2 + ue2)
-            P1f -= nre;
-            P1e += nre;
+            P1f -= nre
+            P1e += nre
             self.bw_pfail = BWs * fo        # expected recovery bandwidth
 
         # if a secondary fails, do any primaries fail within recovery window
@@ -267,7 +276,7 @@ class Results:
 
         # all surviving secondaries fail within Tt + Tp + Td + Ts
         if scp > 1:
-            ue2 = u2 * Ts / (Tt + Tp + Td + Ts)     # scale UER FIT rate
+            ue2 = u2r * Ts / (Tt + Tp + Td + Ts)     # scale UER FIT rate
             P2f2 = Pfail((fo - 1) * (l2 + ue2), Tt + Tp + Td + Ts, scp - 1)
             if debug:
                 print("    P2fail2(%d * (%d+%d), T=%e+%e+%e+%e)=%e" %

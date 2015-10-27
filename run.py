@@ -15,9 +15,9 @@ def printParms(m, s, r):
     """
     print ""
     print "Parameters:"
-    dram = "DRAM, %d FITs/MB (%f uncorrectable)" %\
-           (m.f_dram, m.dram_2bit)
-    nvram = "NVRAM, R-BER=%e, W-BER=%e" % (m.ber_nvm_r, m.ber_nvm_w)
+    dram = "DRAM, %d FITs/MB (%.2f%% uncorrectable)" %\
+           (m.f_dram, m.dram_2bit * 100)
+    nvram = "NVRAM, R-BER=%6.2e, W-BER=%6.2e" % (m.ber_nvm_r, m.ber_nvm_w)
     print("\tprimary:  \t%dMB %s" %
           (m.cache_1/MB, nvram if m.nv_1 else dram))
     if not m.symmetric:
@@ -38,7 +38,7 @@ def printParms(m, s, r):
     else:
         print("\trecovery:  \tmax_dirty=%dMB, flush=%dMiB/s" %
               (m.max_dirty/MB, m.rate_flush/MiB))
-    print("\tsoftware:  \tFITs=%d, hard=%6.3f%%" %
+    print("\tsoftware:  \tFITs=%d, hard=%.2f%%" %
           (m.f_sw, 100 * m.sw_hard))
     if s is not None:
         print("\tcopies:    \t%d, decluster=%d" %
@@ -50,11 +50,11 @@ def printParms(m, s, r):
             print("\tcluster:   \tnP=%d, nS=%d, fan-out=%d, fan-in=%d" %
                   (s.n_primary, s.n_secondary,
                    s.fan_out, s.fan_in))
-        print("\tcache/LUN: \ttotal=%f, dirty=%f" %
-             (s.cache_tot, s.cache_dirty))
+        print("\tcache/LUN: \tcached=%.1f%%, dirty=%.1f%%" %
+             (100 * s.cache_tot, 100 * s.cache_dirty))
     if r is not None:
-        print("\tcache/Prim:\tdirty=%f, lifetime=%fs" %
-              (r.fract_dirty, r.cache_life))
+        print("\tcache/Prim:\tdirty=%.1f%%, lifetime=%.3fs, DWPD=%d" %
+              (100 * r.fract_dirty, r.cache_life, r.dwpd))
         if (m.symmetric):
             print("\tloss:      \tFITs=%d" % (r.fits_1_loss))
         else:

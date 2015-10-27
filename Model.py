@@ -16,10 +16,10 @@ class Model:
         self.descr = description
 
         # hardware configuration parameters
-        self.cache_1 = 1 * GB   # cache per primary node
-        self.cache_2 = 40 * GB  # cache per secondary node
-        self.nv_1 = False       # non-volatile primary
-        self.nv_2 = True        # non-volatile secondary
+        self.cache_1 = 1 * GB   # primary node cache size
+        self.cache_2 = 40 * GB  # secondary node copy size (if asymmetric)
+        self.nv_1 = False       # non-volatile primary cache
+        self.nv_2 = True        # non-volatile secondary copies
         self.n_power = 1        # total power supplies/node
         self.m_power = 1        # minimum power supplies/node
         self.n_fan = 2          # total fans/node
@@ -87,17 +87,22 @@ class Sizes:
         vms = active / m.lun_per_vm
 
         # figure out how many primaries and secondaries that means
+        #   based on the assumption that each copy is a perfect mirror
+        #   of (1/d of) a primary.  This is wasteful, in that we are
+        #   reserving much more remote mirror than we have dirty pages
+        #   but it makes buffer management much simpler and ensures
+        #   equal wear on both primary and secondary cache memory.
         self.n_primary = vms / m.prim_vms
         if (m.symmetric):
             self.n_secondary = self.n_primary if m.copies > 1 else 0
             pcache = m.cache_1 / m.copies
-            # This seems wasteful in that we are reserving much more remote
-            # cache mirror than we have dirty pages, but the reward is
-            # greatly simplified recovery, all copies being identical.
+            # each node has: 1/cp primary, (cp-1)/cp for copies
         else:
             pcache = m.cache_1
             cached = self.n_primary * pcache
             self.n_secondary = cached * (m.copies - 1) / m.cache_2
+            # choose as many secondaries as it takes to hold the
+            # required copies for the required number of primaries
 
         # compute what fraction of each active LUN we can cache
         lsize = m.lun_per_vm * m.lun_size
@@ -143,11 +148,11 @@ class Rates:
         if not m.nv_1:
             self.fits_1_loss += m.f_sw
             self.fits_1_loss += m.cache_1 * m.f_dram * m.dram_2bit / MB
-            # TODO: is this a valid modeling of fatal memory errors
+            # TODO: is this a valid modeling of fatal DRAM errors?
         if not m.nv_2:
             self.fits_2_loss += m.f_sw
             self.fits_2_loss += m.cache_2 * m.f_dram * m.dram_2bit / MB
-            # TODO: is this a valid modeling of fatal memory errors
+            # TODO: is this a valid modeling of fatal DRAM errors?
 
         # compute a few other interesting cache rate/use parameters
         #   Note: we have modeled write-aggregation as a constant,
@@ -155,11 +160,11 @@ class Rates:
         #         the interval between flushes
         pcache = m.cache_1 / m.copies if m.symmetric else m.cache_1
         self.fract_dirty = float(m.max_dirty) / pcache
-        self.writes_in = m.bsize * m.iops * m.write_fract
+        self.writes_in = m.bsize * m.iops * m.write_fract * m.prim_vms
         self.new_writes_in = self.writes_in / m.write_aggr
         self.interval_flush = float(m.max_dirty) / self.new_writes_in
         self.cache_life = float(pcache) / self.new_writes_in
-
+        self.dwpd = self.writes_in * (60 * 60 * 24) / pcache
 
 class Results:
     """ The results of a simulation """

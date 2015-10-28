@@ -39,6 +39,7 @@ class Model:
         self.rate_mirror = 1 * GiB    # remirroring rate
         self.time_detect = 30   # detect failure/initiate recovery
         self.time_timeout = 5   # TCP retransmit timeout
+        self.time_repair = 24 * HOUR  # component repair time
 
         # utilization parameters
         self.cap_used = 0.75    # how full is the backing store
@@ -120,17 +121,16 @@ class Sizes:
 
 class Rates:
     """ The key rates that drive the result """
-    def __init__(self, m, repair=24 * HOUR, debug=False):
+    def __init__(self, m, debug=False):
         """ compute the sizes of the cache and number of nodes
             model -- the base simulation parameters
-            repair -- time (HOURS) to replace a failed component
             debug -- enable diagnostic output
         """
 
         # attempt a bottom-up h/w node FITs computation
-        power_fits = multiFit(m.f_power, m.n_power, m.m_power, repair)
-        fan_fits = multiFit(m.f_fan, m.n_fan, m.m_fan, repair)
-        nic_fits = multiFit(m.f_nic, m.n_nic, m.m_nic, repair)
+        power_fits = multiFit(m.f_power, m.n_power, m.m_power, m.time_repair)
+        fan_fits = multiFit(m.f_fan, m.n_fan, m.m_fan, m.time_repair)
+        nic_fits = multiFit(m.f_nic, m.n_nic, m.m_nic, m.time_repair)
         self.fits_1_loss = m.f_ctlr + power_fits + fan_fits + nic_fits
         self.fits_2_loss = m.f_ctlr + power_fits + fan_fits + nic_fits
 

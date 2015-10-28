@@ -7,6 +7,11 @@ from Model import Model, Sizes, Rates, Results
 from ColumnPrint import ColumnPrint
 
 
+#
+# This routine can be called at different times when different amounts
+# of information are available.  It tries to do the most meaningful and
+# readable possible presentation with the information it is given.
+#
 def printParms(m, s, r):
     """ print out selected parameters for this test
         model -- the model to be printed
@@ -14,15 +19,9 @@ def printParms(m, s, r):
         rates -- the computed FIT rates
     """
     print ""
-    print "Parameters:"
-    dram = "DRAM, %d FITs/MB (%.2f%% uncorrectable)" %\
-           (m.f_dram, m.dram_2bit * 100)
-    nvram = "NVRAM, R-BER=%6.2e, W-BER=%6.2e" % (m.ber_nvm_r, m.ber_nvm_w)
-    print("\tprimary:  \t%dMB %s" %
-          (m.cache_1/MB, nvram if m.nv_1 else dram))
-    if not m.symmetric:
-        print("\tsecondary:\t%dMB %s" %
-              (m.cache_2/MB, nvram if m.nv_2 else dram))
+    print "System Parameters:"
+    print("\tcache size:\tprimary=%dMB, secondary=%dMB" %
+          (m.cache_1/MB, m.cache_2/MB))
     print("\tcapacity:  \tused=%d%%, active=%d%%" %
           (m.cap_used * 100, m.lun_active * 100))
     print("\tLUNs:      \tsize=%dGB, %3.1f/VM, %d/primary" %
@@ -30,19 +29,9 @@ def printParms(m, s, r):
            m.lun_per_vm * m.prim_vms))
     print("\tI/O load:  \t%d(%dK)IOPS/VM, %d%% writes / %d (aggregation)" %
           (m.iops, m.bsize/1024, 100 * m.write_fract, m.write_aggr))
-    print("\tdetection:  \tnodefail=%ds, timeout=%ds" %
-          (m.time_detect, m.time_timeout))
-    if (m.remirror):
-        print("\trecover:  \tmax_dirty=%dMB, flush=%dMiB/s, remirror=%dMiB/s" %
-              (m.max_dirty/MB, m.rate_flush/MiB, m.rate_mirror/MiB))
-    else:
-        print("\trecovery:  \tmax_dirty=%dMB, flush=%dMiB/s" %
-              (m.max_dirty/MB, m.rate_flush/MiB))
-    print("\tsoftware:  \tFITs=%d, hard=%.2f%%" %
-          (m.f_sw, 100 * m.sw_hard))
     if s is not None:
-        print("\tcopies:    \t%d, decluster=%d" %
-              (m.copies, m.decluster))
+        print("\tmirroring: \tcopies=%d, decluster=%d, max_dirty=%dMB" %
+              (m.copies, m.decluster, m.max_dirty/MB))
         if (m.symmetric):
             print("\tcluster:   \tn=%d, fan-out=%d, fan-in=%d" %
                   (s.n_primary, s.fan_out, s.fan_in))
@@ -50,11 +39,42 @@ def printParms(m, s, r):
             print("\tcluster:   \tnP=%d, nS=%d, fan-out=%d, fan-in=%d" %
                   (s.n_primary, s.n_secondary,
                    s.fan_out, s.fan_in))
-        print("\tcache/LUN: \tcached=%.1f%%, dirty=%.1f%%" %
-             (100 * s.cache_tot, 100 * s.cache_dirty))
+    else:
+        print("\tmirroring: \tdecluster=%d, max_dirty=%dMB" %
+              (m.decluster, m.max_dirty/MB))
+
+    print("\tdetection:  \tnodefail=%ds, timeout=%ds" %
+          (m.time_detect, m.time_timeout))
+    if (m.remirror):
+        print("\trecover:  \tflush=%dMiB/s, remirror=%dMiB/s" %
+              (m.rate_flush/MiB, m.rate_mirror/MiB))
+    else:
+        print("\trecovery:  \tflush=%dMiB/s" %
+              (m.rate_flush/MiB))
+
+    if r is not None or s is not None:
+        print("Cache Use Statistics:")
+        if s is not None:
+            print("\tcache/LUN: \tcached=%.1f%%, dirty=%.1f%%" %
+                 (100 * s.cache_tot, 100 * s.cache_dirty))
+        if r is not None:
+            print("\tcache/Prim:\tdirty=%.1f%%, lifetime=%.3fs, DWPD=%d" %
+                  (100 * r.fract_dirty, r.cache_life, r.dwpd))
+
+    print("Reliability Parameters:")
+    print("\tcontroller\t%d FITs per" % (m.f_ctlr))
+    print("\tDRAM:     \t%d FITs/MB (%.2f%% uncorrectable)" %
+          (m.f_dram, m.dram_2bit * 100))
+    print("\tNVRAM:     \tR-BER=%6.2e, W-BER=%6.2e" %
+          (m.ber_nvm_r, m.ber_nvm_w))
+    print("\tfans:     \t%d/%d, %d FITs per, MTTR=%dh" %
+          (m.m_fan, m.n_fan, m.f_fan, m.time_repair/HOUR))
+    print("\tpower:    \t%d/%d, %d FITs per, MTTR=%dh" %
+          (m.m_power, m.n_power, m.f_power, m.time_repair/HOUR))
+    print("\tNICs:     \t%d/%d, %d FITs per, MTTR=%dh" %
+          (m.m_nic, m.n_nic, m.f_nic, m.time_repair/HOUR))
+    print("\tsoftware:  \tFITs=%d, hard=%.2f%%" % (m.f_sw, 100 * m.sw_hard))
     if r is not None:
-        print("\tcache/Prim:\tdirty=%.1f%%, lifetime=%.3fs, DWPD=%d" %
-              (100 * r.fract_dirty, r.cache_life, r.dwpd))
         if (m.symmetric):
             print("\tloss:      \tFITs=%d" % (r.fits_1_loss))
         else:
@@ -63,13 +83,12 @@ def printParms(m, s, r):
 
 
 def run(models, verbosity="default",
-        capacity=1*PiB, period=1*YEAR, repair=24*HOUR):
+        capacity=1*PiB, period=1*YEAR):
     """ execute a single model and print out the results
         models -- list of models to be run
         verbosity -- what kind of output we want
         capacity -- total system capacity (bytes)
         period -- modeled time period (hours)
-        repair -- modeled repair time (hours)
     """
 
     # define the column headings
@@ -149,7 +168,7 @@ def run(models, verbosity="default",
     for m in models:
         # compute sizes and rates
         sizes = Sizes(m, capacity, debug)
-        rates = Rates(m, repair, debug)
+        rates = Rates(m, debug)
 
         # print out the model parameters
         if parms:

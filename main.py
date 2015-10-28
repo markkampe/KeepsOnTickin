@@ -16,19 +16,19 @@ def defaultTests(verbosity="default"):
         # create a list of tests to be run
         mlist = list()
 
-        m = Model("prim: v,   no copies, 5/30s, .2-1GiB/s")
+        m = Model("prim: v,      0 cp, 5/30s, 1G/200MiB/s")
         m.copies = 1
         m.cache_1 = 4 * GB
         m.nv_1 = False
         mlist.append(m)
 
-        m = Model("prim: nv,  no copies, 5/30s, .2-1GiB/s")
+        m = Model("prim: nv,     0 cp, 5/30s, 1G/200MiB/s")
         m.copies = 1
         m.cache_1 = 4 * GB
         m.nv_1 = True
         mlist.append(m)
 
-        m = Model("symmetric:  2 v copy, 5/30s, .2-1GiB/s")
+        m = Model("symmetric:  2 v cp, 5/30s, 1G/200MiB/s")
         m.symmetric = True
         m.copies = 2
         m.cache_1 = 8 * GB
@@ -37,7 +37,7 @@ def defaultTests(verbosity="default"):
         m.nv_2 = False
         mlist.append(m)
 
-        m = Model("prim: v,    1 v copy, 5/30s, .2-1GiB/s")
+        m = Model("prim: v,    1 v cp, 5/30s, 1G/200MiB/s")
         m.copies = 2
         m.cache_1 = 4 * GB
         m.nv_1 = False
@@ -45,7 +45,7 @@ def defaultTests(verbosity="default"):
         m.nv_2 = False
         mlist.append(m)
 
-        m = Model("prim: v,   1 nv copy, 5/30s, .2-1GiB/s")
+        m = Model("prim: v,   1 nv cp, 5/30s, 1G/200MiB/s")
         m.copies = 2
         m.cache_1 = 4 * GB
         m.nv_1 = False
@@ -53,7 +53,7 @@ def defaultTests(verbosity="default"):
         m.nv_2 = True
         mlist.append(m)
 
-        m = Model("symmetric: 2 nv copy, 5/30s, .2-1GiB/s")
+        m = Model("symmetric: 2 nv cp, 5/30s, 1G/200MiB/s")
         m.symmetric = True
         m.copies = 2
         m.cache_1 = 8 * GB
@@ -62,7 +62,7 @@ def defaultTests(verbosity="default"):
         m.nv_2 = True
         mlist.append(m)
 
-        m = Model("prim: nv,  1 nv copy, 5/30s, .2-1GiB/s")
+        m = Model("prim: nv,  1 nv cp, 5/30s, 1G/200MiB/s")
         m.copies = 2
         m.cache_1 = 8 * GB
         m.nv_1 = True
@@ -70,7 +70,7 @@ def defaultTests(verbosity="default"):
         m.nv_2 = True
         mlist.append(m)
 
-        m = Model("symmetric:  3 v copy, 5/30s, .2-1GiB/s")
+        m = Model("symmetric:  3 v cp, 5/30s, 1G/200MiB/s")
         m.symmetric = True
         m.copies = 3
         m.cache_1 = 12 * GB
@@ -79,7 +79,7 @@ def defaultTests(verbosity="default"):
         m.nv_2 = False
         mlist.append(m)
 
-        m = Model("prim: v,    2 v copy, 5/30s, .2-1GiB/s")
+        m = Model("prim: v,    2 v cp, 5/30s, 1G/200MiB/s")
         m.copies = 3
         m.cache_1 = 4 * GB
         m.nv_1 = False
@@ -87,7 +87,7 @@ def defaultTests(verbosity="default"):
         m.nv_2 = False
         mlist.append(m)
 
-        m = Model("prim: v,   2 nv copy, 5/30s, .2-1GiB/s")
+        m = Model("prim: v,   2 nv cp, 5/30s, 1G/200MiB/s")
         m.copies = 3
         m.cache_1 = 4 * GB
         m.nv_1 = False
@@ -95,7 +95,7 @@ def defaultTests(verbosity="default"):
         m.nv_2 = True
         mlist.append(m)
 
-        m = Model("symmetric: 3 nv copy, 5/30s, .2-1GiB/s")
+        m = Model("symmetric: 3 nv cp, 5/30s, 1G/200MiB/s")
         m.copies = 3
         m.symmetric = True
         m.cache_1 = 12 * GB
@@ -104,7 +104,7 @@ def defaultTests(verbosity="default"):
         m.nv_2 = True
         mlist.append(m)
 
-        m = Model("prim: nv,  2 nv copy, 5/30s, .2-1GiB/s")
+        m = Model("prim: nv,  2 nv cp, 5/30s, 1G/200MiB/s")
         m.copies = 3
         m.cache_1 = 4 * GB
         m.nv_1 = True

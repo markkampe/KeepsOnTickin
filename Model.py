@@ -16,11 +16,11 @@ class Model:
         self.descr = description
 
         # hardware configuration parameters
-        self.cache_1 = 1 * GB   # primary node cache size
+        self.cache_1 = 4 * GB   # primary node cache size
         self.cache_2 = 40 * GB  # secondary node copy size (if asymmetric)
-        self.nv_1 = False       # non-volatile primary cache
+        self.nv_1 = True        # non-volatile primary cache
         self.nv_2 = True        # non-volatile secondary copies
-        self.n_power = 1        # total power supplies/node
+        self.n_power = 2        # total power supplies/node
         self.m_power = 1        # minimum power supplies/node
         self.n_fan = 2          # total fans/node
         self.m_fan = 1          # minimum fans/node
@@ -35,10 +35,10 @@ class Model:
         self.max_dirty = 250 * MB   # max dirty data in primary
 
         # performance parameters
-        self.rate_flush = 50 * MiB      # flush to backing store
-        self.rate_mirror = 100 * MiB    # remirroring rate
+        self.rate_flush = 200 * MiB   # flush to backing store
+        self.rate_mirror = 1 * GiB    # remirroring rate
         self.time_detect = 30   # detect failure/initiate recovery
-        self.time_timeout = 10  # TCP retransmit timeout
+        self.time_timeout = 5   # TCP retransmit timeout
 
         # utilization parameters
         self.cap_used = 0.75    # how full is the backing store
@@ -57,17 +57,17 @@ class Model:
 
         # failure rates for which there is real data
         self.f_ctlr = 4000      # per board
-        self.f_power = 1642     # per power supply
-        self.f_fan = 518        # per fan
+        self.f_dram = 6         # per MB (Weiling says 3/chip)
         self.f_nic = 200        # per NIC
-        self.f_dram = 10        # per MB
+        self.f_fan = 518        # per fan
+        self.f_power = 1642     # per supply
         self.ber_nvm_r = 1.0E-17  # read Bit Error Rate
         self.ber_nvm_w = 0.0    # write Bit Error Rate
-        self.f_sw = FitRate(4, YEAR)    # node panics
+        self.f_sw = FitRate(1, YEAR)    # node panics
 
         # magic numbers we can only guess at
-        self.sw_hard = 0.01     # fraction of panics that don't reboot
         self.dram_2bit = 0.01   # fraction of multi-bit DRAM errors
+        self.sw_hard = 0.01     # fraction that don't reboot
 
 
 class Sizes:
@@ -165,6 +165,7 @@ class Rates:
         self.interval_flush = float(m.max_dirty) / self.new_writes_in
         self.cache_life = float(pcache) / self.new_writes_in
         self.dwpd = self.writes_in * (60 * 60 * 24) / pcache
+
 
 class Results:
     """ The results of a simulation """

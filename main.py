@@ -6,6 +6,7 @@ main routine for driving simulations
     process args and invoke gui or a default set of tests
 """
 
+from importlib import import_module
 from Model import Model
 from run import run
 from sizes import GB, MiB, GiB
@@ -121,7 +122,7 @@ def main():
 
     # process the command line arguments arguments
     from optparse import OptionParser
-    parser = OptionParser(usage="usage: %prog [options]")
+    parser = OptionParser(usage="usage: %prog [options] [modules]")
     parser.add_option("-g", "--gui", dest="gui", action="store_true",
                       default=False, help="GUI control panel")
     parser.add_option("-v", "--verbosity", dest="verbose",
@@ -129,16 +130,12 @@ def main():
                       default="")
     (opts, files) = parser.parse_args()
 
-    for f in files:
-        if f == "gui" or f == "GUI":
-            opts.gui = True
-
-    # instantiate, run, and report results from a model
-    if opts.gui:
-        print "GUI not yet implemented"
-        # from RelyGUI import RelyGUI
-        # gui = RelyGUI(cfg, oneTest)
-        # gui.mainloop()
+    # file names are test modules
+    if len(files) > 0:
+        for f in files:
+            module = import_module(f)
+            method = getattr(module, 'tests')
+            method(opts.verbose)
     else:
         defaultTests(opts.verbose)
 

@@ -4,7 +4,8 @@ from sizes import MB, MiB, GB, PiB
 from RelyFuncts import YEAR, HOUR
 
 from Model import Model, Sizes, Rates, Results
-from ColumnPrint import ColumnPrint
+from ColumnPrint import ColumnPrint, printTime, printSize, printFloat, printExp
+from ColumnPrint import printDurability, printProbability
 
 
 #
@@ -151,7 +152,7 @@ def run(models, verbosity="default",
     if descr:
         print ""
         print "Column legends:"
-        s = format.printTime(period)
+        s = printTime(period)
         i = 1
         while i <= len(legends):
             l = legends[i - 1]
@@ -182,13 +183,13 @@ def run(models, verbosity="default",
             s.append("<%d>" % (sizes.n_primary))
         else:
             s.append("<%d,%d>" % (sizes.n_primary, sizes.n_secondary))
-        s.append(format.printDurability(results.durability))
-        s.append(format.printProbability(results.p_loss_node))
-        s.append(format.printProbability(results.p_loss_copy))
+        s.append(printDurability(results.durability))
+        s.append(printProbability(results.p_loss_node))
+        s.append(printProbability(results.p_loss_copy))
         bw = max(results.bw_sfail, results.bw_pfail)
         if bw > 0:
-            s.append(format.printSize(bw, 1000) + "/s")
-            s.append(format.printFloat(results.Trecov)+"s")
+            s.append(printSize(bw, 1000) + "/s")
+            s.append(printFloat(results.Trecov)+"s")
         else:
             s.append("n/a")
             s.append("n/a")

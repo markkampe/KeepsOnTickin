@@ -10,108 +10,52 @@ from importlib import import_module
 from Model import Model
 from run import run
 from sizes import GB, MiB, GiB
+from ColumnPrint import printSize
 
 
 def defaultTests(verbosity="default"):
         """ create and run a set of standard test scenarios """
+        # note the key background parameters
+        m = Model("")
+        misc = ", %d/%ds, %s/%s/s" % (m.time_timeout, m.time_detect,
+                                      printSize(m.rate_mirror, 1000),
+                                      printSize(m.rate_flush, 1000))
+
         # create a list of tests to be run
         mlist = list()
 
-        m = Model("prim: v,      0 cp, 5/30s, 1G/200MiB/s")
-        m.copies = 1
-        m.cache_1 = 4 * GB
-        m.nv_1 = False
-        mlist.append(m)
+        # run tests for all the interesting combinations
+        for cp in (1, 2, 3):
+            for primary in (" v", "nv"):
+                sList = ["none"] if cp == 1 else [" v", "nv", "symmetric"]
+                for secondary in sList:
+                    # suppress irrelevent combinations
+                    if primary == "nv" and secondary == " v":
+                        continue
 
-        m = Model("prim: nv,     0 cp, 5/30s, 1G/200MiB/s")
-        m.copies = 1
-        m.cache_1 = 4 * GB
-        m.nv_1 = True
-        mlist.append(m)
+                    # figure out how to caption this configuration
+                    if secondary == "symmetric":
+                        desc = ("symmetric: %d %s cp" % (cp, primary))
+                    elif (cp > 1):
+                        desc = ("prim: %s   %d %s cp" %
+                               (primary, cp - 1, secondary))
+                    else:
+                        desc = "prim: %s      0 cp" % (primary)
 
-        m = Model("symmetric:  2 v cp, 5/30s, 1G/200MiB/s")
-        m.symmetric = True
-        m.copies = 2
-        m.cache_1 = 8 * GB
-        m.nv_1 = False
-        m.cache_2 = 0
-        m.nv_2 = False
-        mlist.append(m)
-
-        m = Model("prim: v,    1 v cp, 5/30s, 1G/200MiB/s")
-        m.copies = 2
-        m.cache_1 = 4 * GB
-        m.nv_1 = False
-        m.cache_2 = 40 * GB
-        m.nv_2 = False
-        mlist.append(m)
-
-        m = Model("prim: v,   1 nv cp, 5/30s, 1G/200MiB/s")
-        m.copies = 2
-        m.cache_1 = 4 * GB
-        m.nv_1 = False
-        m.cache_2 = 40 * GB
-        m.nv_2 = True
-        mlist.append(m)
-
-        m = Model("symmetric: 2 nv cp, 5/30s, 1G/200MiB/s")
-        m.symmetric = True
-        m.copies = 2
-        m.cache_1 = 8 * GB
-        m.nv_1 = True
-        m.cache_2 = 0
-        m.nv_2 = True
-        mlist.append(m)
-
-        m = Model("prim: nv,  1 nv cp, 5/30s, 1G/200MiB/s")
-        m.copies = 2
-        m.cache_1 = 8 * GB
-        m.nv_1 = True
-        m.cache_2 = 40 * GB
-        m.nv_2 = True
-        mlist.append(m)
-
-        m = Model("symmetric:  3 v cp, 5/30s, 1G/200MiB/s")
-        m.symmetric = True
-        m.copies = 3
-        m.cache_1 = 12 * GB
-        m.nv_1 = False
-        m.cache_2 = 0
-        m.nv_2 = False
-        mlist.append(m)
-
-        m = Model("prim: v,    2 v cp, 5/30s, 1G/200MiB/s")
-        m.copies = 3
-        m.cache_1 = 4 * GB
-        m.nv_1 = False
-        m.cache_2 = 40 * GB
-        m.nv_2 = False
-        mlist.append(m)
-
-        m = Model("prim: v,   2 nv cp, 5/30s, 1G/200MiB/s")
-        m.copies = 3
-        m.cache_1 = 4 * GB
-        m.nv_1 = False
-        m.cache_2 = 40 * GB
-        m.nv_2 = True
-        mlist.append(m)
-
-        m = Model("symmetric: 3 nv cp, 5/30s, 1G/200MiB/s")
-        m.copies = 3
-        m.symmetric = True
-        m.cache_1 = 12 * GB
-        m.nv_1 = True
-        m.cache_2 = 0
-        m.nv_2 = True
-        mlist.append(m)
-
-        m = Model("prim: nv,  2 nv cp, 5/30s, 1G/200MiB/s")
-        m.copies = 3
-        m.cache_1 = 4 * GB
-        m.nv_1 = True
-        m.cache_2 = 40 * GB
-        m.nv_2 = True
-        mlist.append(m)
+                    # instantiate the model
+                    m = Model(desc + misc)
+                    m.copies = cp
+                    m.nv_1 = (primary == "nv")
+                    m.cache_1 = 4 * GB
+                    if secondary == "symmetric":
+                        m.symmetric = True
+                        m.cache_1 *= cp
+                        m.nv_2 = (primary == "nv")
+                        m.cache_2 = 0
+                    elif cp > 1:
+                        m.nv_2 = (secondary == "nv")
+                        m.cache_2 = 40 * GB
+                    mlist.append(m)
 
         # run all the specified models
         run(mlist, verbosity)

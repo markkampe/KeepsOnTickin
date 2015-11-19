@@ -1,7 +1,7 @@
 """
 Input values to the simulation, and output values from the simulation
 """
-from RelyFuncts import FitRate, Pfail, Pn, Punion, multiFit
+from RelyFuncts import FitRate, Pfail, Pfail_gt, Pn, Punion, multiFit
 from RelyFuncts import SECOND, MINUTE, HOUR, DAY, YEAR, BILLION
 from sizes import MiB, GiB, PiB, MB, GB
 
@@ -211,26 +211,26 @@ class Results:
             # based on maximum secondary flush rate
             u2r = BWs * model.ber_nvm_r
         else:
-            u2r = 0
-            u2w = 0
+            u2r = 0                     # there are no UERs
+            u2w = 0                     # there are no UERs
 
-        # expected bit errors per billion hours
-        u1 *= 8 * BILLION / SECOND
-        u2w *= 8 * BILLION / SECOND
-        u2r *= 8 * BILLION / SECOND
+        # turn data rates/second into FIT rates
+        u1 *= 8 * BILLION / SECOND      # primary UER FITs
+        u2w *= 8 * BILLION / SECOND     # 2ndary write UER FITs
+        u2r *= 8 * BILLION / SECOND     # 2ndary read UER FITs
         if debug:
             print("")
             print("FIT(BER,1) = %e, FIT(UER,2R) = %e, FIT(BER,2W) = %e" %
                   (u1, u2r, u2w))
 
         # Compute the detection and recovery times
-        Tt = model.time_timeout * SECOND
-        Td = model.time_detect * SECOND
-        b2f = dirty / dc
-        Ts = b2f / BWs * SECOND
+        Tt = model.time_timeout * SECOND    # timeout (hours)
+        Td = model.time_detect * SECOND     # detect (hours)
+        b2f = dirty / dc                    # bytes to flush
+        Ts = b2f / BWs * SECOND             # secondary flush (hours)
         if model.remirror and model.rate_mirror > model.rate_flush:
             BWp = model.rate_mirror
-        Tp = b2f / BWp * SECOND
+        Tp = b2f / BWp * SECOND             # primary flush (hours)
         self.Trecov = max(Tt+Tp, Td+Ts) / SECOND if scp > 0 else 0
 
         # estimate the network traffic associated with normal I/O
@@ -259,8 +259,10 @@ class Results:
                 print("    P1nre(E1E)=%e" % (P1e))
         else:   # C-1/fan-out secondaries fail within Td+Ts
             ue2 = u2r * Ts / (Td + Ts)       # scale UER FIT rate
-            P1f = Pfail(E1f * fo * (l2 + ue2), Td + Ts, scp)
-            P1e = Pfail(E1e * fo * (l2 + ue2), Td + Ts, scp)
+            # 1f probability of data loss following primary node failure
+            P1f = Pfail_gt(E1f * fo * (l2 + ue2), Td + Ts, scp - 1)
+            # 1e probability of data loss following primary node URE
+            P1e = Pfail_gt(E1e * fo * (l2 + ue2), Td + Ts, scp - 1)
             if debug:
                 print("    P1fail(E1F * %d * (%d+%d), T=%e+%e)=%e" %
                       (fo, l2, ue2, Td, Ts, P1f))
@@ -283,7 +285,7 @@ class Results:
         # all surviving secondaries fail within Tt + Tp + Td + Ts
         if scp > 1:
             ue2 = u2r * Ts / (Tt + Tp + Td + Ts)     # scale UER FIT rate
-            P2f2 = Pfail((fo - 1) * (l2 + ue2), Tt + Tp + Td + Ts, scp - 1)
+            P2f2 = Pfail_gt((fo - 1) * (l2 + ue2), Tt + Tp + Td + Ts, scp - 2)
             if debug:
                 print("    P2fail2(%d * (%d+%d), T=%e+%e+%e+%e)=%e" %
                       (fo - 1, l2, ue2, Tt, Tp, Td, Ts, P2f2))

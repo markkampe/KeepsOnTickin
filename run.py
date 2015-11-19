@@ -83,27 +83,40 @@ def printParms(m, s, r):
             print("\tloss(2):   \tFITs=%d" % (r.fits_2_loss))
 
 
-def run(models, verbosity="default",
+def run(models, columns="", verbosity="default",
         capacity=1*PiB, period=1*YEAR):
     """ execute a single model and print out the results
         models -- list of models to be run
+        columns -- what optional columns to include
         verbosity -- what kind of output we want
         capacity -- total system capacity (bytes)
         period -- modeled time period (hours)
     """
 
+    # figure out what optional fields to include
+    showTr = False     # FIX get from columns
+    showBW = False     # FIX get from columns
+
     # define the column headings
-    heads = ("configuration", "<p,s>/PiB", "durability",
-             "PL(node)", "PL(NRE)", "BW(recov)", "T(recov)")
+    heads = [
+        "configuration", "<p,s>/PiB", "durability",
+        "PL(node)", "PL(NRE)"
+    ]
     legends = [
         "configuration being modeled",
         "<primaries, secondaries> per petabyte",
         "probability of object survival*",
         "probability of loss due to node failures*",
-        "probability of loss due to NREs during recovery*",
-        "peak recovery bandwidth",
-        "max detect/recovery time"
+        "probability of loss due to NREs during recovery*"
     ]
+
+    # consider the optional fields
+    if showBW:
+        heads.append("BW(recov)")
+        legends.append("peak recovery bandwidth")
+    if showTr:
+        heads.append("T(recov)")
+        legends.append("max detect/recovery time")
 
     # figure out the longest description
     maxlen = len(heads[0])
@@ -187,10 +200,9 @@ def run(models, verbosity="default",
         s.append(printProbability(results.p_loss_node))
         s.append(printProbability(results.p_loss_copy))
         bw = max(results.bw_sfail, results.bw_pfail)
-        if bw > 0:
-            s.append(printSize(bw, 1000) + "/s")
-            s.append(printFloat(results.Trecov)+"s")
-        else:
-            s.append("n/a")
-            s.append("n/a")
+
+        if showBW:
+            s.append("n/a" if bw == 0 else printSize(bw, 1000) + "/s")
+        if showTr:
+            s.append("n/a" if bw == 0 else printFloat(results.Trecov)+"s")
         format.printLine(s)

@@ -13,7 +13,7 @@ from sizes import GB, MiB, GiB
 from ColumnPrint import printSize
 
 
-def defaultTests(verbosity="default"):
+def defaultTests(columns="", verbosity="default"):
         """ create and run a set of standard test scenarios """
         # note the key background parameters
         m = Model("")
@@ -58,7 +58,7 @@ def defaultTests(verbosity="default"):
                     mlist.append(m)
 
         # run all the specified models
-        run(mlist, verbosity)
+        run(mlist, columns, verbosity)
 
 
 def main():
@@ -69,6 +69,9 @@ def main():
     parser = OptionParser(usage="usage: %prog [options] [modules]")
     parser.add_option("-g", "--gui", dest="gui", action="store_true",
                       default=False, help="GUI control panel")
+    parser.add_option("-r", "--report", dest="columns",
+                      metavar="bw,time", help="output columns",
+                      default="")
     parser.add_option("-v", "--verbosity", dest="verbose",
                       metavar="data|headings|parameters|debug|all",
                       default="")
@@ -79,9 +82,9 @@ def main():
         for f in files:
             module = import_module(f)
             method = getattr(module, 'tests')
-            method(opts.verbose)
+            method(opts.columns, opts.verbose)
     else:
-        defaultTests(opts.verbose)
+        defaultTests(opts.columns, opts.verbose)
 
 if __name__ == "__main__":
     main()

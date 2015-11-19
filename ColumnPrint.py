@@ -65,7 +65,7 @@ class ColumnPrint:
     def printHeadings(self):
         """ print out a set of column headings and separator line """
         print ""
-        print self.format % self.headings
+        print self.format % tuple(self.headings)
 
         # how wide should a dash be
         dashes = 0

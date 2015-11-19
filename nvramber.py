@@ -10,7 +10,7 @@ from run import run
 from sizes import GB, MiB, GiB
 
 
-def tests(verbosity="default"):
+def tests(columns="", verbosity="default"):
         """ create and run a set of standard test scenarios """
         # create a list of tests to be run
         mlist = list()
@@ -56,4 +56,4 @@ def tests(verbosity="default"):
                         mlist.append(m)
 
         # run all the specified models
-        run(mlist, verbosity)
+        run(mlist, columns, verbosity)

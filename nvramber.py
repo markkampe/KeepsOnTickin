@@ -41,7 +41,7 @@ def tests(columns="", verbosity="default"):
 
                         # instantiate the model
                         m = Model(desc + misc)
-                        m.ber_vm_r = ber
+                        m.ber_nvm_r = ber
                         m.copies = cp
                         m.nv_1 = (primary == "nv")
                         m.cache_1 = 4 * GB

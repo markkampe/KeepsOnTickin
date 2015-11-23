@@ -80,7 +80,7 @@ def main():
     # file names are test modules
     if len(files) > 0:
         for f in files:
-            module = import_module(f)
+            module = import_module(f, package=__package__)
             method = getattr(module, 'tests')
             method(opts.columns, opts.verbose)
     else:

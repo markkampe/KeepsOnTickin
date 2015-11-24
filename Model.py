@@ -251,28 +251,16 @@ class Results:
 
         # if there are no copies, primary failure = data loss
         if fo == 0:
-            P1f = 1 - Pn(E1f, 0)
-            P1e = 1 - Pn(E1e, 0)
+            P1 = 1 - Pn(E1f + E1e, 0)
             self.bw_pfail = 0       # but we don't use much bw :-)
             if debug:
-                print("    P1fail(E1F)=%e" % (P1f))
-                print("    P1nre(E1E)=%e" % (P1e))
+                print("    P1(E1F+E1E)=%e" % (P1))
         else:   # C-1/fan-out secondaries fail within Td+Ts
             ue2 = u2r * Ts / (Td + Ts)       # scale UER FIT rate
-            # 1f probability of data loss following primary node failure
-            P1f = Pfail_gt(E1f * fo * (l2 + ue2), Td + Ts, scp - 1)
-            # 1e probability of data loss following primary node URE
-            P1e = Pfail_gt(E1e * fo * (l2 + ue2), Td + Ts, scp - 1)
-
+            P1 = Pfail_gt((E1f + E1e) * fo * (l2 + ue2), Td + Ts, scp - 1)
             if debug:
-                print("    P1fail(E1F * %d * (%d+%d), T=%e+%e)=%e" %
-                      (fo, l2, ue2, Td, Ts, P1f))
-                print("    P1nre(E1E * %d * (%d+%d), T=%e+%e)=%e" %
-                      (fo, l2, ue2, Td, Ts, P1e))
-            # crude attempt to separate 2ndary NREs from node failures
-            nre = P1f * ue2 / (l2 + ue2)
-            P1f -= nre
-            P1e += nre
+                print("    P1((%d+%d) * %d * (%d+%d), T=%e+%e)=%e" %
+                      (E1f, E1E, fo, l2, ue2, Td, Ts, P1f))
             self.bw_pfail = BWs * fo        # expected recovery bandwidth
 
         # if a secondary fails, do any primaries fail within recovery window
@@ -290,26 +278,15 @@ class Results:
             if debug:
                 print("    P2fail2(%d * (%d+%d), T=%e+%e+%e+%e)=%e" %
                       (fo - 1, l2, ue2, Tt, Tp, Td, Ts, P2f2))
-            # crude attempt to separate 2ndary NREs from node failures
-            P2e2 = P2f2 * ue2 / (l2 + ue2)
-            P2f2 -= P2e2
+            P2 = P2f1 * P2f2
         else:
-            P2f2 = 1.0
-            P2e2 = 0.0
-
-        P2f = P2f1 * P2f2
-        P2e = P2f1 * P2e2
-        if debug:
-            print("    P2F = %e * %e = %e" % (P2f1, P2f2, P2f))
-            print("    P2E = %e * %e = %e" % (P2f1, P2e2, P2e))
+            P2 = P2f1
 
         # tally up the loss probabilities and expentancies
-        self.p_loss_node = Punion(P1f, P2f)
-        self.p_loss_copy = Punion(P1e, P2e)
-        self.p_loss_all = Punion(P1f, P2f, P1e, P2e)
+        self.p_loss = Punion(P1, P2)
 
-        # compute the durability
-        d = 1 - self.p_loss_all
+        # compute the associated durability
+        d = 1 - self.p_loss
         self.durability = d
         self.nines = 0
         while d > .9:

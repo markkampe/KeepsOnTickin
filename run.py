@@ -99,15 +99,13 @@ def run(models, columns="", verbosity="default",
 
     # define the column headings
     heads = [
-        "configuration", "<p,s>/PiB", "durability",
-        "PL(node)", "PL(NRE)"
+        "configuration", "<p,s>/PiB", "durability", "Ploss"
     ]
     legends = [
         "configuration being modeled",
         "<primaries, secondaries> per petabyte",
         "probability of object survival*",
-        "probability of loss due to node failures*",
-        "probability of loss due to NREs during recovery*"
+        "probability of loss*",
     ]
 
     # consider the optional fields
@@ -197,8 +195,7 @@ def run(models, columns="", verbosity="default",
         else:
             s.append("<%d,%d>" % (sizes.n_primary, sizes.n_secondary))
         s.append(printDurability(results.durability))
-        s.append(printProbability(results.p_loss_node))
-        s.append(printProbability(results.p_loss_copy))
+        s.append(printProbability(results.p_loss))
         bw = max(results.bw_sfail, results.bw_pfail)
 
         if showBW:

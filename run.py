@@ -58,9 +58,12 @@ def printParms(m, s, r):
         if s is not None:
             print("\tcache/LUN: \tcached=%.1f%%, dirty=%.1f%%" %
                  (100 * s.cache_tot, 100 * s.cache_dirty))
-        if r is not None:
-            print("\tcache/Prim:\tdirty=%.1f%%, lifetime=%.3fs, DWPD=%d" %
-                  (100 * r.fract_dirty, r.cache_life, r.dwpd))
+            day = 60 * 60 * 24
+            print("\tprimary:\tlifetime=%.3fs, DWPD=%d, dirty=%.1f%%" %
+                  (s.cache_life_1, day / s.cache_life_1, 100 * s.fract_dirty))
+            if (s.cache_life_2 != 0):
+                print("\tsecondary:\tlifetime=%.3fs, DWPD=%d" %
+                      (s.cache_life_2, day / s.cache_life_2))
 
     print("Reliability Parameters:")
     print("\tcontroller\t%d FITs per" % (m.f_ctlr))

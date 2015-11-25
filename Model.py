@@ -118,6 +118,26 @@ class Sizes:
             self.fan_out = max(m.decluster, m.copies - 1)
             self.fan_in = self.fan_out * self.n_primary / self.n_secondary
 
+        # compute a few other interesting cache rate/use parameters
+        #   Note: we have modeled write-aggregation as a constant,
+        #         but in actuality it is probably a function of the
+        #         the interval between flushes
+        if m.symmetric:
+            pcache = m.cache_1 / m.copies
+            scache = (m.cache_1 * (m.copies - 1) / m.copies)
+        else:
+            pcache = m.cache_1
+            scache = m.cache_2
+        self.fract_dirty = float(m.max_dirty) / pcache
+        self.writes_in = m.bsize * m.iops * m.write_fract * m.prim_vms
+        self.new_writes_in = self.writes_in / m.write_aggr
+        self.interval_flush = float(m.max_dirty) / self.new_writes_in
+
+        self.cache_life_1 = float(pcache) / self.new_writes_in
+        w2 = self.writes_in * (m.copies - 1) * self.n_primary
+        self.cache_life_2 = 0 if m.copies < 2 else \
+            self.n_secondary * float(scache) / w2
+
 
 class Rates:
     """ The key rates that drive the result """
@@ -153,18 +173,6 @@ class Rates:
             self.fits_2_loss += m.f_sw
             self.fits_2_loss += m.cache_2 * m.f_dram * m.dram_2bit / MB
             # TODO: is this a valid modeling of fatal DRAM errors?
-
-        # compute a few other interesting cache rate/use parameters
-        #   Note: we have modeled write-aggregation as a constant,
-        #         but in actuality it is probably a function of the
-        #         the interval between flushes
-        pcache = m.cache_1 / m.copies if m.symmetric else m.cache_1
-        self.fract_dirty = float(m.max_dirty) / pcache
-        self.writes_in = m.bsize * m.iops * m.write_fract * m.prim_vms
-        self.new_writes_in = self.writes_in / m.write_aggr
-        self.interval_flush = float(m.max_dirty) / self.new_writes_in
-        self.cache_life = float(pcache) / self.new_writes_in
-        self.dwpd = self.writes_in * (60 * 60 * 24) / pcache
 
 
 class Results:
@@ -202,12 +210,12 @@ class Results:
         # compute the equivalent FIT rates for UREs
         if model.nv_1:
             # based on average incoming traffic
-            u1 = rates.writes_in * (model.ber_nvm_w + model.ber_nvm_r)
+            u1 = sizes.writes_in * (model.ber_nvm_w + model.ber_nvm_r)
         else:
             u1 = 0
         if model.nv_2:
             # based on average mirroring traffic per secondary
-            u2w = rates.writes_in * scp * model.ber_nvm_w / max(fo, 1)
+            u2w = sizes.writes_in * scp * model.ber_nvm_w / max(fo, 1)
             # based on maximum secondary flush rate
             u2r = BWs * model.ber_nvm_r
         else:
